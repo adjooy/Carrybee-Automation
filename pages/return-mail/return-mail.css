@@ -1,0 +1,48 @@
+.return-table{
+  border-collapse:collapse;
+  width:365px;
+  max-width:100%;
+  margin-top:14px;
+  font-family:Arial,sans-serif;
+  font-size:13px;
+}
+
+.return-table td,
+.return-table th{
+  border:1px solid #d0d0d0;
+  padding:5px 7px;
+  text-align:left;
+}
+
+.return-date{
+  background:#eeeeee;
+  text-align:center!important;
+  font-weight:700;
+  font-size:14px;
+  padding:7px!important;
+}
+
+.return-head{
+  background:#2563eb;
+  color:white;
+  text-align:center!important;
+  font-weight:700;
+}
+
+.return-table tbody tr:nth-child(even){
+  background:#f8f8f8;
+}
+
+.signature{
+  margin-top:18px;
+  line-height:1.45;
+}
+
+.signature-name{
+  font-weight:700;
+}
+
+.signature-company{
+  color:#f97316;
+  font-weight:600;
+}

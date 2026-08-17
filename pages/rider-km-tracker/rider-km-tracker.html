@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ledger — Rider KM Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#12151c;
+    --ink-soft:#5b6472;
+    --paper:#f5f2ea;
+    --paper-raised:#fffefb;
+    --steel:#dcd6c6;
+    --steel-line:#c8c0aa;
+    --amber:#dd9a2e;
+    --amber-dark:#b87c1e;
+    --green:#3f9c6d;
+    --green-bg:#e4f3ea;
+    --red:#c74c56;
+    --red-bg:#faeaea;
+    --radius:14px;
+    --shadow: 0 1px 0 rgba(18,21,28,0.05), 0 8px 24px rgba(18,21,28,0.06);
+    font-family:'Public Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(180deg, transparent 0 38px, rgba(18,21,28,0.025) 38px 39px),
+      var(--paper);
+    color:var(--ink);
+  }
+  h1,h2,h3{font-family:'Big Shoulders Display',sans-serif; letter-spacing:0.01em; margin:0;}
+  .num{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+
+  /* ---------- top instrument strip ---------- */
+  .dash{
+    background:var(--ink);
+    color:var(--paper);
+    padding:22px clamp(16px,4vw,40px) 26px;
+  }
+  .dash-top{
+    display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px;}
+  .brand h1{font-size:28px; font-weight:800; text-transform:uppercase; color:#fff;}
+  .brand span{color:var(--amber); font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.12em; text-transform:uppercase;}
+  .dash-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .odometer-row{
+    display:grid; grid-template-columns:repeat(6,1fr); gap:1px;
+    background:rgba(245,242,234,0.14); border-radius:10px; overflow:hidden;
+  }
+  @media (max-width:900px){ .odometer-row{grid-template-columns:repeat(3,1fr);} }
+  @media (max-width:520px){ .odometer-row{grid-template-columns:repeat(2,1fr);} }
+  .odo{background:var(--ink); padding:14px 16px;}
+  .odo .lbl{font-size:10.5px; text-transform:uppercase; letter-spacing:0.1em; color:#9aa2b1; margin-bottom:6px;}
+  .odo .val{font-size:22px; font-weight:600; color:#fff;}
+  .odo .val.amber{color:var(--amber);}
+  .odo .val.green{color:#7fd6a7;}
+  .odo .val.red{color:#f0a0a8;}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1280px; margin:0 auto; padding:26px clamp(16px,4vw,40px) 60px;}
+  .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:18px;}
+  .c-4{grid-column:span 4;} .c-6{grid-column:span 6;} .c-8{grid-column:span 8;} .c-12{grid-column:span 12;}
+  @media (max-width:980px){ .c-4,.c-6,.c-8{grid-column:span 12;} }
+
+  .card{
+    background:var(--paper-raised); border:1px solid var(--steel);
+    border-radius:var(--radius); padding:20px; box-shadow:var(--shadow);
+  }
+  .card-head{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
+  .card-head h2{font-size:20px; font-weight:700;}
+  .tag{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;
+    background:var(--paper); border:1px solid var(--steel-line); color:var(--ink-soft);
+    padding:5px 9px; border-radius:999px;
+  }
+  .tag.locked{color:var(--red); border-color:#e6c3c6; background:var(--red-bg);}
+  .tag.open{color:var(--green); border-color:#c3e2cf; background:var(--green-bg);}
+
+  .lane{
+    border-top:2px dashed var(--steel-line); margin:22px 0;
+  }
+
+  /* ---------- forms ---------- */
+  label{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;}
+  input, select{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--steel-line);
+    font-size:14px; font-family:'Public Sans',sans-serif; background:var(--paper-raised); color:var(--ink);
+  }
+  input:focus, select:focus{outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(221,154,46,0.18);}
+  .field{margin-bottom:12px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
+  @media (max-width:640px){ .row2,.row3{grid-template-columns:1fr;} }
+  .row4-stats{grid-template-columns:repeat(4,1fr);}
+  @media (max-width:640px){ .row4-stats{grid-template-columns:repeat(2,1fr);} }
+  .odo-row-4{grid-template-columns:repeat(4,1fr);}
+  @media (max-width:640px){ .odo-row-4{grid-template-columns:repeat(2,1fr);} }
+  .filter-row5{grid-template-columns:2fr 1fr 1fr 1fr 1fr;}
+  @media (max-width:900px){ .filter-row5{grid-template-columns:1fr 1fr;} }
+  @media (max-width:480px){ .filter-row5{grid-template-columns:1fr;} }
+
+  button{
+    font-family:'Public Sans',sans-serif; font-weight:700; font-size:13.5px; cursor:pointer;
+    border:none; border-radius:9px; padding:11px 16px; transition:transform .12s ease, box-shadow .12s ease;
+  }
+  button:active{transform:translateY(1px);}
+  button:disabled{opacity:0.45; cursor:not-allowed; transform:none; box-shadow:none;}
+  .btn{background:var(--ink); color:#fff;}
+  .btn:hover{box-shadow:0 6px 16px rgba(18,21,28,0.22);}
+  .btn-amber{background:var(--amber); color:#241a06;}
+  .btn-amber:hover{box-shadow:0 6px 16px rgba(221,154,46,0.35);}
+  .btn-outline{background:transparent; color:var(--ink); border:1px solid var(--steel-line);}
+  .btn-outline:hover{border-color:var(--ink);}
+  .btn-red{background:var(--red); color:#fff;}
+  .btn-red:hover{box-shadow:0 6px 16px rgba(199,76,86,0.32);}
+  .btn-sm{padding:6px 10px; font-size:12px; border-radius:7px;}
+  .btn-block{width:100%;}
+  .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
+
+  /* ---------- tables ---------- */
+  .table-scroll{overflow:auto; max-height:380px; border:1px solid var(--steel); border-radius:11px; -webkit-overflow-scrolling:touch;}
+  table{width:100%; min-width:560px; border-collapse:collapse; font-size:13.5px;}
+  th{
+    position:sticky; top:0; background:var(--paper); text-align:left; font-size:10.5px;
+    text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); padding:10px 12px;
+    border-bottom:1px solid var(--steel-line); white-space:nowrap;
+  }
+  td{padding:10px 12px; border-bottom:1px solid #ece7d9; vertical-align:middle; white-space:nowrap;}
+  @media (max-width:640px){
+    table{min-width:520px; font-size:12.5px;}
+    th, td{padding:8px 10px;}
+  }
+  tr:last-child td{border-bottom:none;}
+  .empty-row td{text-align:center; color:var(--ink-soft); padding:26px 0; font-style:italic;}
+  .badge{font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:0.03em;}
+  .badge.paid{background:var(--green-bg); color:var(--green);}
+  .badge.partial{background:#fdf1de; color:var(--amber-dark);}
+  .badge.unpaid{background:var(--red-bg); color:var(--red);}
+  .note-muted{color:var(--ink-soft); font-size:12px; margin-top:10px; line-height:1.6;}
+
+  /* ---------- overlay ---------- */
+  .overlay{position:fixed; inset:0; background:rgba(18,21,28,0.6); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:20px; z-index:999;}
+  .overlay.hidden{display:none;}
+  .hidden{display:none !important;}
+
+  /* ---- Auth screen (modern) ---- */
+  #authScreen{
+    background:
+      radial-gradient(circle at 15% 12%, rgba(221,154,46,0.16), transparent 42%),
+      radial-gradient(circle at 85% 88%, rgba(63,156,109,0.14), transparent 40%),
+      var(--ink);
+  }
+  .auth-card{
+    position:relative; width:100%; max-width:400px;
+    background:var(--paper-raised);
+    border-radius:20px;
+    padding:36px 32px 30px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35), 0 2px 0 rgba(255,255,255,0.6) inset;
+    animation:authIn .45s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes authIn{from{opacity:0; transform:translateY(14px) scale(.98);} to{opacity:1; transform:none;}}
+  .auth-badge{
+    width:52px; height:52px; border-radius:14px;
+    background:linear-gradient(135deg, var(--amber), var(--amber-dark));
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:800; color:#241a06;
+    box-shadow:0 8px 18px rgba(221,154,46,0.35);
+    margin-bottom:16px;
+  }
+  .auth-card h2{font-size:23px; margin-bottom:4px; letter-spacing:-0.01em;}
+  .auth-sub{color:var(--ink-soft); font-size:13.5px; line-height:1.5; margin-bottom:24px;}
+  .auth-field{margin-bottom:14px;}
+  .auth-field label{font-size:11.5px;}
+  .auth-field input{
+    padding:12px 14px; border-radius:11px; border:1.5px solid var(--steel-line);
+    background:var(--paper); transition:border-color .15s, box-shadow .15s, background .15s;
+  }
+  .auth-field input:focus{background:var(--paper-raised);}
+  .auth-row2{display:grid; grid-template-columns:1fr; gap:10px;}
+  .auth-row2.is-signup{grid-template-columns:1fr 1fr;}
+  #authError{
+    background:var(--red-bg); color:var(--red); border-radius:10px;
+    padding:10px 12px; font-size:12.5px; margin:0 0 14px; font-weight:600;
+  }
+  .auth-submit{
+    width:100%; padding:13px; border-radius:12px; border:none; cursor:pointer;
+    background:linear-gradient(135deg, var(--amber), var(--amber-dark));
+    color:#241a06; font-weight:700; font-size:14.5px; letter-spacing:0.01em;
+    box-shadow:0 10px 22px rgba(221,154,46,0.32);
+    transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  }
+  .auth-submit:hover{transform:translateY(-1px); box-shadow:0 14px 28px rgba(221,154,46,0.4);}
+  .auth-submit:active{transform:translateY(0);}
+  .auth-submit:disabled{opacity:0.6; cursor:default; transform:none;}
+  .auth-switch{text-align:center; font-size:13px; color:var(--ink-soft); margin:20px 0 0;}
+  .auth-switch a{color:var(--amber-dark); font-weight:700; text-decoration:none;}
+  .auth-switch a:hover{text-decoration:underline;}
+  .auth-lock-note{
+    display:flex; align-items:center; gap:8px; margin-top:22px; padding-top:18px;
+    border-top:1px solid var(--steel-line); font-size:11.5px; color:var(--ink-soft);
+  }
+  .overlay-card{width:100%; max-width:380px; background:var(--paper-raised); border-radius:16px; padding:24px; box-shadow:0 24px 60px rgba(0,0,0,0.28); max-height:90vh; overflow-y:auto;}
+  .overlay-card h2{font-size:20px; margin-bottom:6px;}
+  @media (max-width:480px){
+    .overlay{padding:12px;}
+    .overlay-card{padding:18px; border-radius:14px;}
+    .auth-card{padding:26px 22px 24px; border-radius:16px;}
+  }
+
+  ::placeholder{color:#9a927e;}
+
+  /* ---------- menu ---------- */
+  .menu-wrap{position:relative;}
+  .menu-dropdown{
+    position:absolute; top:calc(100% + 8px); right:0; min-width:230px; max-width:calc(100vw - 32px);
+    max-height:calc(100vh - 100px); overflow-y:auto;
+    background:var(--paper-raised); border:1px solid var(--steel-line); border-radius:12px;
+    box-shadow:0 16px 40px rgba(18,21,28,0.28); padding:8px; display:flex; flex-direction:column; gap:2px; z-index:80;
+  }
+  .menu-dropdown.hidden{display:none;}
+  .menu-item{
+    background:transparent; color:var(--ink); border:none; text-align:left; font-weight:600;
+    padding:10px 12px; border-radius:8px; width:100%;
+  }
+  .menu-item:hover{background:var(--paper);}
+  .menu-divider{border-top:1px solid var(--steel-line); margin:6px 2px;}
+
+  @media (max-width:480px){
+    .menu-dropdown{position:fixed; top:auto; bottom:12px; left:12px; right:12px; width:auto; min-width:0;}
+    .dash-top{align-items:center;}
+    .brand h1{font-size:22px;}
+    .brand{gap:8px; flex-wrap:wrap;}
+    .brand span{font-size:10.5px;}
+  }
+
+  /* ---------- modal ---------- */
+  .modal-close{
+    background:var(--paper); border:1px solid var(--steel-line); color:var(--ink-soft);
+    width:30px; height:30px; padding:0; border-radius:50%; font-size:14px; line-height:1;
+  }
+  .modal-close:hover{color:var(--ink); border-color:var(--ink);}
+</style>
+</head>
+<body>
+
+<!-- ================= BOOT LOADING SCREEN ================= -->
+<div id="bootLoading" style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--ink);">
+  <div style="width:38px; height:38px; border-radius:50%; border:3px solid rgba(221,154,46,0.25); border-top-color:var(--amber); animation:bootSpin .8s linear infinite;"></div>
+</div>
+<style>@keyframes bootSpin{to{transform:rotate(360deg);}}</style>
+
+<!-- ================= AUTH SCREEN =================
+     This page is normally opened from the main Operations Panel,
+     which already handles sign in / sign up. If someone reaches
+     this file directly without being signed in, show a simple
+     notice instead of a duplicate login form. -->
+<div id="authScreen" class="hidden" style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;">
+  <div class="auth-card" style="text-align:center;">
+    <div class="auth-badge" style="margin-left:auto;margin-right:auto;">L</div>
+    <h2>Sign in required</h2>
+    <p class="auth-sub">Please sign in from the main Operations Panel — this section uses that same login.</p>
+  </div>
+</div>
+
+<div id="appRoot" class="hidden">
+
+<div id="pinOverlay" class="overlay hidden">
+  <div class="overlay-card">
+    <h2 id="pinOverlayTitle">Owner PIN</h2>
+    <p class="note-muted" id="pinOverlayText">Enter the owner PIN to continue.</p>
+    <div class="field" style="margin-top:12px;">
+      <label for="pinInput">PIN</label>
+      <input id="pinInput" type="password" inputmode="numeric" placeholder="••••" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-amber" style="flex:1" onclick="Overlay.submit()">Confirm</button>
+      <button class="btn-outline" style="flex:1" onclick="Overlay.close()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="riderModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:440px;">
+    <div class="card-head" style="margin-bottom:16px;">
+      <h2>Riders</h2>
+      <button class="modal-close" onclick="Menu.close('riderModal')">✕</button>
+    </div>
+    <div class="field">
+      <label for="riderName">Add rider</label>
+      <input id="riderName" type="text" placeholder="Rider name" onkeydown="if(event.key==='Enter')Riders.add()" />
+    </div>
+    <button class="btn btn-block" onclick="Riders.add()">Add Rider</button>
+    <div class="table-scroll" style="margin-top:14px; max-height:280px;">
+      <table><thead><tr><th>Name</th><th>Pending</th><th></th></tr></thead><tbody id="riderRows"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="ownerModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:440px;">
+    <div class="card-head" style="margin-bottom:16px;">
+      <h2>Owner Panel</h2>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="tag" id="sessionTag">Locked</span>
+        <button class="modal-close" onclick="Menu.close('ownerModal')">✕</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="newPin">New PIN</label><input id="newPin" type="password" placeholder="At least 4 digits" /></div>
+      <div class="field"><label for="confirmPin">Confirm PIN</label><input id="confirmPin" type="password" placeholder="Repeat PIN" /></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="PinSystem.change()">Save PIN</button>
+      <button class="btn-outline session-unlock-btn" onclick="PinSystem.unlock()">Unlock Session</button>
+      <button class="btn-outline session-lock-btn" onclick="PinSystem.lock()">Lock Session</button>
+    </div>
+    <div class="lane" style="margin:16px 0;"></div>
+    <button class="btn-red btn-block" onclick="DataStore.clearAll()">Delete All Data</button>
+    <p class="note-muted">Edit and delete stay behind the PIN. Unlock once to work freely, then lock again when you're done.</p>
+  </div>
+</div>
+
+<div id="dailyModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:520px;">
+    <div class="card-head" style="margin-bottom:14px;">
+      <h2>Daily Fuel Cost Report</h2>
+      <button class="modal-close" onclick="Menu.close('dailyModal')">✕</button>
+    </div>
+    <div class="field"><label for="reportDay">Date</label><input id="reportDay" type="date" onchange="Reports.render()" /></div>
+    <div class="btn-row" style="margin-bottom:14px;">
+      <button class="btn-sm btn-amber" onclick="Reports.exportDaily('csv')">CSV</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportDaily('pdf')">PDF</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportDaily('jpg')">JPG</button>
+    </div>
+    <div class="table-scroll" style="max-height:340px;">
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th><th>Total Pending</th></tr></thead><tbody id="dailyRows"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="weeklyModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:520px;">
+    <div class="card-head" style="margin-bottom:14px;">
+      <h2>This Week</h2>
+      <button class="modal-close" onclick="Menu.close('weeklyModal')">✕</button>
+    </div>
+    <div class="btn-row" style="margin-bottom:14px;">
+      <button class="btn-sm btn-amber" onclick="Reports.exportWeekly('csv')">CSV</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportWeekly('pdf')">PDF</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportWeekly('jpg')">JPG</button>
+    </div>
+    <div class="table-scroll" style="max-height:400px;">
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th></tr></thead><tbody id="weeklyRows"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="monthlyModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:520px;">
+    <div class="card-head" style="margin-bottom:14px;">
+      <h2>Monthly Summary</h2>
+      <button class="modal-close" onclick="Menu.close('monthlyModal')">✕</button>
+    </div>
+    <div class="field"><label for="reportMonth">Month</label><input id="reportMonth" type="month" onchange="Reports.render()" /></div>
+    <div class="btn-row" style="margin-bottom:14px;">
+      <button class="btn-sm btn-amber" onclick="Reports.exportMonthly('csv')">CSV</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportMonthly('pdf')">PDF</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportMonthly('jpg')">JPG</button>
+    </div>
+    <div class="table-scroll" style="max-height:340px;">
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th></tr></thead><tbody id="monthlyRows"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="riderReportModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:580px;">
+    <div class="card-head" style="margin-bottom:14px;">
+      <h2>Rider Report</h2>
+      <button class="modal-close" onclick="Menu.close('riderReportModal')">✕</button>
+    </div>
+    <div class="field"><label for="riderReportSelect">Rider</label><select id="riderReportSelect" onchange="Reports.renderRiderReport()"></select></div>
+    <div class="btn-row" style="margin:12px 0 14px;">
+      <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('csv')">CSV</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('pdf')">PDF</button>
+      <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('jpg')">JPG</button>
+    </div>
+    <div class="odometer-row odo-row-4" style="margin:14px 0; border-radius:10px;">
+      <div class="odo"><div class="lbl">KM</div><div class="val num" id="rrKm">0.00</div></div>
+      <div class="odo"><div class="lbl">Total</div><div class="val amber num" id="rrTotal">0.00</div></div>
+      <div class="odo"><div class="lbl">Paid</div><div class="val green num" id="rrPaid">0.00</div></div>
+      <div class="odo"><div class="lbl">Pending</div><div class="val red num" id="rrPending">0.00</div></div>
+    </div>
+    <div class="table-scroll" style="max-height:320px;">
+      <table><thead><tr><th>Date</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th><th>Status</th></tr></thead><tbody id="riderReportRows"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="backupModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:440px;">
+    <div class="card-head" style="margin-bottom:16px;">
+      <h2>Backup & Restore</h2>
+      <button class="modal-close" onclick="Menu.close('backupModal')">✕</button>
+    </div>
+    <div class="btn-row" style="margin-bottom:12px;">
+      <button class="btn btn-amber" style="flex:1" onclick="Backup.exportJSON()">Export JSON</button>
+      <button class="btn-outline" style="flex:1" onclick="Backup.exportCSV()">Export CSV</button>
+    </div>
+    <div class="field"><label for="importFile">Restore from JSON</label><input id="importFile" type="file" accept="application/json" onchange="Backup.import(event)" /></div>
+    <p class="note-muted">Data is saved automatically as you work. Export a backup regularly to keep a copy of your own.</p>
+  </div>
+</div>
+
+<div id="auditModal" class="overlay hidden">
+  <div class="overlay-card" style="max-width:520px;">
+    <div class="card-head" style="margin-bottom:16px;">
+      <h2>Audit Log</h2>
+      <button class="modal-close" onclick="Menu.close('auditModal')">✕</button>
+    </div>
+    <div class="table-scroll" style="max-height:400px;">
+      <table><thead><tr><th style="width:220px;">Time</th><th>Action</th></tr></thead><tbody id="auditRows"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="dash">
+  <div class="dash-top">
+    <div class="brand">
+      <h1>Ledger</h1>
+      <span>Rider KM & Payout Tracker</span>
+    </div>
+    <div class="menu-wrap">
+      <button class="btn-amber" onclick="Menu.toggle()">☰ Menu</button>
+      <div class="menu-dropdown hidden" id="menuDropdown">
+        <button class="menu-item session-unlock-btn" onclick="Menu.action(PinSystem.unlock)">Unlock Owner Access</button>
+        <button class="menu-item session-lock-btn" onclick="Menu.action(PinSystem.lock)">Lock Owner Access</button>
+        <button class="menu-item" onclick="Menu.action(Backup.exportJSON)">Backup JSON</button>
+        <button class="menu-item" onclick="Menu.action(Backup.exportCSV)">Export CSV</button>
+        <div class="menu-divider"></div>
+        <button class="menu-item" onclick="Menu.open('riderModal')">Add Rider</button>
+        <button class="menu-item" onclick="Menu.open('ownerModal')">Owner Panel</button>
+        <div class="menu-divider"></div>
+        <button class="menu-item" onclick="Menu.open('dailyModal')">Daily Fuel Cost Report</button>
+        <button class="menu-item" onclick="Menu.open('weeklyModal')">Weekly Report</button>
+        <button class="menu-item" onclick="Menu.open('monthlyModal')">Monthly Summary</button>
+        <button class="menu-item" onclick="Reports.openRiderReport()">Rider Report</button>
+        <button class="menu-item" onclick="Menu.open('backupModal')">Backup & Restore</button>
+        <button class="menu-item" onclick="Menu.open('auditModal')">Audit Log</button>
+        <div class="menu-divider"></div>
+        <button class="menu-item" id="accountEmailLabel" style="color:var(--ink-soft); font-weight:600; cursor:default;" onclick="event.stopPropagation()"></button>
+        <button class="menu-item" style="color:var(--red);" onclick="Menu.action(Auth.logout)">Log Out</button>
+      </div>
+    </div>
+  </div>
+  <div class="odometer-row">
+    <div class="odo"><div class="lbl">Total KM</div><div class="val num" id="statKm">0.00</div></div>
+    <div class="odo"><div class="lbl">Total Amount</div><div class="val amber num" id="statAmount">0.00</div></div>
+    <div class="odo"><div class="lbl">Total Paid</div><div class="val green num" id="statPaid">0.00</div></div>
+    <div class="odo"><div class="lbl">Pending</div><div class="val red num" id="statPending">0.00</div></div>
+    <div class="odo"><div class="lbl">This Month KM</div><div class="val num" id="statMonthKm">0.00</div></div>
+    <div class="odo"><div class="lbl">This Month Amount</div><div class="val amber num" id="statMonthAmount">0.00</div></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- Entry form -->
+    <div class="card c-12">
+      <div class="card-head"><h2 id="entryTitle">Add Ride Entry</h2></div>
+      <div class="row2">
+        <div class="field"><label for="entryDate">Date</label><input id="entryDate" type="date" onchange="Entries.preview()" /></div>
+        <div class="field"><label for="entryRider">Rider</label><select id="entryRider" onchange="Entries.preview()"></select></div>
+      </div>
+      <div class="row3">
+        <div class="field"><label for="entryKm">KM</label><input id="entryKm" type="number" min="0" step="0.01" placeholder="0.00" oninput="Entries.preview()" /></div>
+        <div class="field"><label for="entryRate">Rate / KM</label><input id="entryRate" type="number" min="0" step="0.01" value="3.5" oninput="Entries.preview()" /></div>
+        <div class="field"><label for="entryPaid">Paid Amount</label><input id="entryPaid" type="number" min="0" step="0.01" value="0" oninput="Entries.preview()" /></div>
+      </div>
+      <div class="field"><label for="entryNote">Note</label><input id="entryNote" type="text" placeholder="Optional note" /></div>
+      <div class="row3 row4-stats">
+        <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Total</div><div class="val num" id="prevTotal">0.00</div></div>
+        <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Pending</div><div class="val red num" id="prevPending">0.00</div></div>
+        <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Last Day Due</div><div class="val amber num" id="prevLastDue">0.00</div></div>
+        <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Status</div><div class="val amber" id="prevStatus">Unpaid</div></div>
+      </div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-amber" id="entrySaveBtn" onclick="Entries.save()">Save Entry</button>
+        <button class="btn-outline" onclick="Entries.resetForm()">Reset</button>
+      </div>
+      <p class="note-muted">Total = KM × Rate. Pending = Total − Paid. Editing or deleting an entry requires owner PIN unlock.</p>
+    </div>
+
+    <!-- Entries table -->
+    <div class="card c-12">
+      <div class="card-head">
+        <h2>All Entries</h2>
+        <span class="tag">Edit / Delete Protected</span>
+      </div>
+      <div class="row3 filter-row5" style="gap:10px;">
+        <div class="field"><label for="fSearch">Search</label><input id="fSearch" type="text" placeholder="Rider or note…" oninput="Entries.render()" /></div>
+        <div class="field"><label for="fRider">Rider</label><select id="fRider" onchange="Entries.render()"></select></div>
+        <div class="field"><label for="fMonth">Month</label><input id="fMonth" type="month" onchange="Entries.render()" /></div>
+        <div class="field">
+          <label for="fStatus">Status</label>
+          <select id="fStatus" onchange="Entries.render()">
+            <option value="">All</option><option value="paid">Paid</option><option value="partial">Partial</option><option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+        <div class="field"><label>&nbsp;</label><button class="btn-outline btn-block" onclick="Entries.clearFilters()">Clear</button></div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Date</th><th>Rider</th><th>KM</th><th>Rate</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th><th>Total Pending</th><th>Status</th><th>Note</th><th></th></tr></thead>
+          <tbody id="entryRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer id="siteCredit" style="text-align:center; padding:18px 16px 26px; font-size:12px; color:var(--ink-soft); letter-spacing:0.01em;"></footer>
+
+</div><!-- /#appRoot -->
+
+<script>
+/* ============================================================
+   FIREBASE — auth + per-user cloud storage
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyADm297kotJhrGe_TbM9dZCktoFDVBIIr4",
+  authDomain: "adjoy-rider-tracker.firebaseapp.com",
+  projectId: "adjoy-rider-tracker",
+  storageBucket: "adjoy-rider-tracker.firebasestorage.app",
+  messagingSenderId: "207253998908",
+  appId: "1:207253998908:web:17f549b4a947b327f5e239",
+  measurementId: "G-3CBEZGZVHM"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const fbDb = firebase.firestore();
+// Persist the session across page reloads and browser restarts.
+// The user stays signed in until they explicitly log out.
+fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+const Auth = (() => {
+  let mode = 'signin'; // 'signin' | 'signup'
+
+  function toggleMode(){
+    mode = mode === 'signin' ? 'signup' : 'signin';
+    const isSignup = mode === 'signup';
+    document.getElementById('authTitle').textContent = isSignup ? 'Create your account' : 'Welcome back';
+    document.getElementById('authSub').textContent = isSignup
+      ? 'Set up your own private rider ledger in a few seconds.'
+      : 'Sign in to access your own rider ledger. Your data is private to your account.';
+    document.getElementById('authSubmitBtn').textContent = isSignup ? 'Create Account' : 'Sign In';
+    document.getElementById('authToggleText').textContent = isSignup ? 'Already have an account?' : "Don't have an account?";
+    document.getElementById('authToggleLink').textContent = isSignup ? 'Sign in' : 'Create one';
+    document.getElementById('authNameField').classList.toggle('hidden', !isSignup);
+    document.getElementById('authConfirmField').classList.toggle('hidden', !isSignup);
+    document.getElementById('authRow2').classList.toggle('is-signup', isSignup);
+    document.getElementById('authName').value = '';
+    document.getElementById('authConfirmPassword').value = '';
+    hideError();
+  }
+
+  function showError(msg){
+    const el = document.getElementById('authError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+  function hideError(){
+    document.getElementById('authError').style.display = 'none';
+  }
+
+  async function submit(){
+    const name = document.getElementById('authName').value.trim();
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const confirmPassword = document.getElementById('authConfirmPassword').value;
+    hideError();
+
+    if(!email || !password) return showError('Enter both email and password.');
+    if(password.length < 6) return showError('Password must be at least 6 characters.');
+
+    if(mode === 'signup'){
+      if(!name) return showError('Enter your full name.');
+      if(password !== confirmPassword) return showError('Passwords do not match.');
+    }
+
+    const btn = document.getElementById('authSubmitBtn');
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = mode === 'signin' ? 'Signing in…' : 'Creating account…';
+    try{
+      if(mode === 'signin'){
+        await fbAuth.signInWithEmailAndPassword(email, password);
+      } else {
+        const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
+        await cred.user.updateProfile({ displayName: name });
+      }
+    }catch(e){
+      showError(friendlyError(e));
+      btn.textContent = originalLabel;
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  function friendlyError(e){
+    const map = {
+      'auth/invalid-email': 'That email address looks invalid.',
+      'auth/user-not-found': 'No account found with that email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/email-already-in-use': 'An account already exists with that email.',
+      'auth/weak-password': 'Password must be at least 6 characters.',
+      'auth/too-many-requests': 'Too many attempts. Please wait and try again.'
+    };
+    return map[e.code] || 'Something went wrong. Please try again.';
+  }
+
+  async function logout(){
+    if(!confirm('Log out of your account?')) return;
+    await fbAuth.signOut();
+  }
+
+  fbAuth.onAuthStateChanged(async (user) => {
+    document.getElementById('bootLoading').classList.add('hidden');
+    if(user){
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('appRoot').classList.remove('hidden');
+      const label = document.getElementById('accountEmailLabel');
+      if(label) label.textContent = user.displayName ? `${user.displayName} · ${user.email}` : user.email;
+      await DataStore.load();
+    } else {
+      document.getElementById('appRoot').classList.add('hidden');
+      document.getElementById('authScreen').classList.remove('hidden');
+    }
+  });
+
+  return { submit, toggleMode, logout };
+})();
+
+/* ============================================================
+   STATE — single in-memory object, persisted per-user in Firestore
+   ============================================================ */
+const DataStore = (() => {
+  const MAX_LOGS = 100;
+  let state = { riders: [], entries: [], auditLogs: [], pin: '' };
+
+  function docRef(){
+    const user = fbAuth.currentUser;
+    if(!user) return null;
+    return fbDb.collection('users').doc(user.uid);
+  }
+
+  function defaultRiders(){
+    return [{id:'r1',name:'Rider 1'},{id:'r2',name:'Rider 2'},{id:'r3',name:'Rider 3'}];
+  }
+
+  async function load(){
+    try{
+      const ref = docRef();
+      if(!ref){ return; }
+      const snap = await ref.get();
+      if(snap.exists){
+        const parsed = snap.data();
+        state = {
+          riders: Array.isArray(parsed.riders) ? parsed.riders : defaultRiders(),
+          entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+          auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : [],
+          pin: typeof parsed.pin === 'string' ? parsed.pin : ''
+        };
+      } else {
+        state = { riders: defaultRiders(), entries: [], auditLogs: [], pin: '' };
+        await persist();
+      }
+    }catch(e){
+      console.error('Load failed', e);
+      alert('Could not load your data from the cloud. Check your internet connection and reload.');
+    }
+    App.renderAll();
+  }
+
+  async function persist(){
+    try{
+      const ref = docRef();
+      if(!ref) return;
+      await ref.set(state);
+    }
+    catch(e){ console.error('Save failed', e); alert('Could not save to the cloud — check your internet connection.'); }
+  }
+
+  function log(action){
+    state.auditLogs.unshift({ id:id('log'), time:new Date().toISOString(), action });
+    state.auditLogs = state.auditLogs.slice(0, MAX_LOGS);
+  }
+
+  function id(prefix){ return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+
+  async function clearAll(){
+    PinSystem.require(async () => {
+      if(!confirm('Delete ALL riders, entries, and logs? This cannot be undone.')) return;
+      state = { riders:[], entries:[], auditLogs:[], pin: state.pin };
+      log('All data cleared');
+      await persist();
+      App.renderAll();
+      Entries.resetForm();
+      alert('All data deleted.');
+    }, 'Enter PIN to delete all data.');
+  }
+
+  return { get state(){ return state; }, load, persist, log, id, clearAll };
+})();
+
+/* ============================================================
+   PIN / OWNER ACCESS
+   ============================================================ */
+const PinSystem = (() => {
+  let unlocked = false; // in-memory only — resets on reload, by design
+
+  function hasPin(){ return !!DataStore.state.pin; }
+
+  async function change(){
+    const p1 = document.getElementById('newPin').value.trim();
+    const p2 = document.getElementById('confirmPin').value.trim();
+    if(!p1 || !p2) return alert('Enter and confirm the new PIN.');
+    if(p1 !== p2) return alert('PINs do not match.');
+    if(p1.length < 4) return alert('Use at least 4 characters.');
+
+    const proceed = async () => {
+      DataStore.state.pin = p1;
+      DataStore.log(hasPin() ? 'PIN changed' : 'PIN created');
+      await DataStore.persist();
+      document.getElementById('newPin').value = '';
+      document.getElementById('confirmPin').value = '';
+      App.renderAuditLog();
+      alert('PIN saved.');
+    };
+
+    if(hasPin() && !unlocked){
+      require(proceed, 'Enter current PIN to change it.');
+    } else {
+      await proceed();
+    }
+  }
+
+  function require(callback, message){
+    if(!hasPin()){
+      alert('Set an owner PIN in the Owner Panel first.');
+      return;
+    }
+    if(unlocked){ callback(); return; }
+    Overlay.open(message, async (entered) => {
+      if(entered !== DataStore.state.pin){ alert('Wrong PIN.'); return false; }
+      unlocked = true;
+      DataStore.log('Owner session unlocked');
+      await DataStore.persist();
+      App.renderAuditLog();
+      updateSessionUI();
+      callback();
+      return true;
+    });
+  }
+
+  function unlock(){
+    if(unlocked){ alert('Owner access is already unlocked.'); return; }
+    require(() => {}, 'Enter PIN to unlock owner access.');
+  }
+
+  async function lock(){
+    if(!unlocked){ alert('Owner access is already locked.'); return; }
+    unlocked = false;
+    DataStore.log('Owner session locked');
+    await DataStore.persist();
+    App.renderAuditLog();
+    updateSessionUI();
+  }
+
+  function updateSessionUI(){
+    document.querySelectorAll('.session-unlock-btn').forEach(b => b.disabled = unlocked);
+    document.querySelectorAll('.session-lock-btn').forEach(b => b.disabled = !unlocked);
+    const tag = document.getElementById('sessionTag');
+    tag.textContent = unlocked ? 'Unlocked' : 'Locked';
+    tag.className = 'tag ' + (unlocked ? 'open' : 'locked');
+  }
+
+  return { require, change, unlock, lock, updateSessionUI, get unlocked(){ return unlocked; } };
+})();
+
+/* ============================================================
+   PIN OVERLAY — one reusable modal for any PIN prompt
+   ============================================================ */
+const Overlay = (() => {
+  let onSubmit = null;
+
+  function open(message, handler){
+    onSubmit = handler;
+    document.getElementById('pinOverlayText').textContent = message;
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinOverlay').classList.remove('hidden');
+    setTimeout(() => document.getElementById('pinInput').focus(), 40);
+  }
+
+  async function submit(){
+    const value = document.getElementById('pinInput').value;
+    if(onSubmit){
+      const ok = await onSubmit(value);
+      if(ok) close();
+    }
+  }
+
+  function close(){
+    document.getElementById('pinOverlay').classList.add('hidden');
+    onSubmit = null;
+  }
+
+  return { open, submit, close };
+})();
+
+/* ============================================================
+   MENU (top-right dropdown + the two modals it opens)
+   ============================================================ */
+const Menu = (() => {
+  function dropdown(){ return document.getElementById('menuDropdown'); }
+
+  function toggle(){ dropdown().classList.toggle('hidden'); }
+  function closeDropdown(){ dropdown().classList.add('hidden'); }
+
+  function action(fn){ closeDropdown(); fn(); }
+
+  function open(modalId){
+    closeDropdown();
+    document.getElementById(modalId).classList.remove('hidden');
+  }
+  function close(modalId){
+    document.getElementById(modalId).classList.add('hidden');
+  }
+
+  document.addEventListener('click', e => {
+    const wrap = document.querySelector('.menu-wrap');
+    if(wrap && !wrap.contains(e.target)) closeDropdown();
+  });
+
+  return { toggle, open, close, action };
+})();
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const money = v => Number(v || 0).toFixed(2);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const todayISO = () => new Date().toISOString().split('T')[0];
+const isoDateStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+/* Ownership credit — stored base64-encoded rather than as plain text in the
+   source, and re-injected on every load. Not real encryption (nothing client-side
+   truly is), just a mild deterrent against a casual find-and-delete. The real
+   protection is that this line is baked directly into every exported PDF/JPG
+   image as pixels, so it survives even if this HTML file itself is edited. */
+const CREDIT_B64 = 'UmlkZXIgS00gVHJhY2tlciDigJQgRGV2ZWxvcGVkIGJ5IEFEIEpveSAg4oCiICBhZGpveS5tZUBnbWFpbC5jb20gIOKAoiAgSW5zdGFncmFtOiBAYWRqb3kubWU=';
+function creditLine(){ try{ return atob(CREDIT_B64); }catch(e){ return 'Developed by AD Joy'; } }
+
+function riderMap(){ return Object.fromEntries(DataStore.state.riders.map(r => [r.id, r.name])); }
+
+function riderPendingMap(){
+  const map = {};
+  DataStore.state.entries.forEach(e => { map[e.riderId] = (map[e.riderId] || 0) + Number(e.pending || 0); });
+  return map;
+}
+
+/* Running balance: for each rider, pending summed only through a given date —
+   so a later entry never changes what an earlier date's row already showed.
+   Returns { riderId: { 'YYYY-MM-DD': cumulativePendingThroughThatDate, ... } } */
+function riderPendingCumulativeByDate(entries){
+  const byRiderDate = {};
+  entries.forEach(e => {
+    if(!byRiderDate[e.riderId]) byRiderDate[e.riderId] = {};
+    byRiderDate[e.riderId][e.date] = (byRiderDate[e.riderId][e.date] || 0) + Number(e.pending || 0);
+  });
+  const cumulative = {};
+  Object.keys(byRiderDate).forEach(riderId => {
+    const dates = Object.keys(byRiderDate[riderId]).sort();
+    let running = 0;
+    cumulative[riderId] = {};
+    dates.forEach(d => {
+      running += byRiderDate[riderId][d];
+      cumulative[riderId][d] = running;
+    });
+  });
+  return cumulative;
+}
+
+/* Convenience: cumulative pending for every rider as of one specific date. */
+function riderPendingAsOf(day){
+  const cumulative = riderPendingCumulativeByDate(DataStore.state.entries);
+  const map = {};
+  Object.keys(cumulative).forEach(riderId => {
+    const dates = Object.keys(cumulative[riderId]).sort();
+    let result = 0;
+    for(const d of dates){
+      if(d <= day) result = cumulative[riderId][d];
+      else break;
+    }
+    map[riderId] = result;
+  });
+  return map;
+}
+
+/* "Last Day Due": all of this rider's pending EXCLUDING their own current date —
+   i.e. the balance already carried forward from before this date. Works for any
+   cutoff date, whether or not an entry exists exactly on that date (e.g. a brand
+   new date being entered, or the first day of a week/month). */
+function lastDayDueFor(cumulativeMap, riderId, cutoffDate){
+  const riderDates = cumulativeMap[riderId];
+  if(!riderDates) return 0;
+  const dates = Object.keys(riderDates).sort();
+  let result = 0;
+  for(const d of dates){
+    if(d < cutoffDate) result = riderDates[d];
+    else break;
+  }
+  return result;
+}
+
+function buildLastDueMap(cumulativeMap, cutoffDate){
+  const map = {};
+  DataStore.state.riders.forEach(r => { map[r.id] = lastDayDueFor(cumulativeMap, r.id, cutoffDate); });
+  return map;
+}
+
+function entryStatus(e){
+  const total = Number(e.total||0), paid = Number(e.paid||0);
+  if(total <= 0) return 'unpaid';
+  if(paid >= total) return 'paid';
+  if(paid > 0) return 'partial';
+  return 'unpaid';
+}
+function statusBadge(s){
+  return `<span class="badge ${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</span>`;
+}
+
+function renderRows(tbodyId, rows, colspan, rowHtmlFn, emptyText){
+  const tbody = document.getElementById(tbodyId);
+  if(!rows.length){
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="${colspan}">${emptyText}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(rowHtmlFn).join('');
+}
+
+function toCsv(rows){
+  return rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+}
+
+function downloadFile(filename, content, type){
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function formatDateLong(d){
+  return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+}
+
+/* Builds an off-screen, print-friendly snapshot (title + optional stat chips + table)
+   used as the source for JPG/PDF report exports. Caller removes it after capture. */
+function buildPrintable(title, subtitle, headers, rows, statChips){
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed; left:-10000px; top:0; width:820px; background:#ffffff; padding:32px; font-family:Arial,Helvetica,sans-serif; color:#12151c;';
+
+  const statsHtml = (statChips && statChips.length) ? `
+    <div style="display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap;">
+      ${statChips.map(s => `
+        <div style="background:#12151c; color:#fff; padding:10px 16px; border-radius:8px; min-width:100px;">
+          <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#9aa2b1; margin-bottom:4px;">${esc(s.label)}</div>
+          <div style="font-size:17px; font-weight:700;">${esc(s.value)}</div>
+        </div>`).join('')}
+    </div>` : '';
+
+  const headHtml = headers.map(h =>
+    `<th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#555; border-bottom:2px solid #12151c;">${esc(h)}</th>`
+  ).join('');
+  const bodyHtml = rows.length
+    ? rows.map(r => `<tr>${r.map(c => `<td style="padding:8px 10px; border-bottom:1px solid #e2ddd0; font-size:13px;">${esc(String(c))}</td>`).join('')}</tr>`).join('')
+    : `<tr><td colspan="${headers.length}" style="padding:20px; text-align:center; color:#888;">No data</td></tr>`;
+
+  wrap.innerHTML = `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:22px; font-weight:800; letter-spacing:-0.01em;">${esc(title)}</div>
+      <div style="font-size:12px; color:#666; margin-top:4px;">${esc(subtitle)}</div>
+    </div>
+    ${statsHtml}
+    <table style="width:100%; border-collapse:collapse;"><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>
+    <div style="margin-top:22px; padding-top:14px; border-top:1px solid #e2ddd0; font-size:11px; color:#999; text-align:center;">${esc(creditLine())}</div>
+  `;
+  document.body.appendChild(wrap);
+  return wrap;
+}
+
+async function elementToCanvas(node){
+  const canvas = await html2canvas(node, { backgroundColor: '#ffffff', scale: 2 });
+  document.body.removeChild(node);
+  return canvas;
+}
+
+function downloadCanvasAsJPG(canvas, filename){
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = canvas.toDataURL('image/jpeg', 0.95);
+  a.click();
+}
+
+function downloadCanvasAsPDF(canvas, filename){
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'pt', 'a4');
+  const margin = 24;
+  const pageWidth = pdf.internal.pageSize.getWidth() - margin * 2;
+  const pageHeight = pdf.internal.pageSize.getHeight() - margin * 2;
+  const imgWidth = pageWidth;
+  const imgHeight = canvas.height * imgWidth / canvas.width;
+  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+  let heightLeft = imgHeight;
+  let y = margin;
+  pdf.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+  heightLeft -= pageHeight;
+
+  while (heightLeft > 0){
+    y = margin - (imgHeight - heightLeft);
+    pdf.addPage();
+    pdf.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+  }
+  pdf.save(filename);
+}
+
+async function exportVisual(title, subtitle, headers, rows, baseFilename, format, statChips){
+  if(typeof html2canvas === 'undefined' || (format === 'pdf' && !(window.jspdf && window.jspdf.jsPDF))){
+    alert('Could not load the PDF/JPG export library — check your internet connection and try again.');
+    return;
+  }
+  const node = buildPrintable(title, subtitle, headers, rows, statChips);
+  const canvas = await elementToCanvas(node);
+  if(format === 'jpg') downloadCanvasAsJPG(canvas, baseFilename + '.jpg');
+  else downloadCanvasAsPDF(canvas, baseFilename + '.pdf');
+}
+
+/* ============================================================
+   RIDERS
+   ============================================================ */
+const Riders = (() => {
+  let editingId = null;
+
+  async function add(){
+    const input = document.getElementById('riderName');
+    const name = input.value.trim();
+    if(!name) return alert('Enter a rider name.');
+    if(DataStore.state.riders.some(r => r.name.toLowerCase() === name.toLowerCase()))
+      return alert('This rider already exists.');
+    DataStore.state.riders.push({ id: DataStore.id('rider'), name });
+    DataStore.log('Added rider: ' + name);
+    await DataStore.persist();
+    input.value = '';
+    App.renderAll();
+  }
+
+  function edit(riderId){
+    PinSystem.require(() => {
+      editingId = riderId;
+      render();
+      setTimeout(() => {
+        const el = document.getElementById('riderEditInput_' + riderId);
+        if(el){ el.focus(); el.select(); }
+      }, 30);
+    }, 'Enter PIN to edit rider.');
+  }
+
+  function cancelEdit(){
+    editingId = null;
+    render();
+  }
+
+  async function saveEdit(riderId){
+    const input = document.getElementById('riderEditInput_' + riderId);
+    const name = input.value.trim();
+    if(!name) return alert('Enter a rider name.');
+    if(DataStore.state.riders.some(r => r.id !== riderId && r.name.toLowerCase() === name.toLowerCase()))
+      return alert('Another rider already has this name.');
+    const rider = DataStore.state.riders.find(r => r.id === riderId);
+    if(!rider) return;
+    const oldName = rider.name;
+    rider.name = name;
+    editingId = null;
+    if(oldName !== name) DataStore.log(`Renamed rider: ${oldName} → ${name}`);
+    await DataStore.persist();
+    App.renderAll();
+  }
+
+  function remove(riderId){
+    PinSystem.require(async () => {
+      const rider = DataStore.state.riders.find(r => r.id === riderId);
+      if(DataStore.state.entries.some(e => e.riderId === riderId))
+        return alert('This rider has entries — delete those first.');
+      if(!confirm('Delete this rider?')) return;
+      DataStore.state.riders = DataStore.state.riders.filter(r => r.id !== riderId);
+      DataStore.log('Deleted rider: ' + (rider ? rider.name : riderId));
+      await DataStore.persist();
+      App.renderAll();
+    }, 'Enter PIN to delete rider.');
+  }
+
+  function populateSelects(){
+    const riders = DataStore.state.riders;
+    const options = riders.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    document.getElementById('entryRider').innerHTML = options || '<option value="">No riders yet</option>';
+    document.getElementById('fRider').innerHTML = '<option value="">All Riders</option>' + options;
+  }
+
+  function render(){
+    const pending = riderPendingMap();
+    renderRows('riderRows', DataStore.state.riders, 3, r => {
+      if(editingId === r.id){
+        return `<tr>
+          <td colspan="2"><input id="riderEditInput_${r.id}" type="text" value="${esc(r.name)}" onkeydown="if(event.key==='Enter')Riders.saveEdit('${r.id}'); if(event.key==='Escape')Riders.cancelEdit();" /></td>
+          <td><div class="btn-row">
+            <button class="btn-sm btn" onclick="Riders.saveEdit('${r.id}')">Save</button>
+            <button class="btn-sm btn-outline" onclick="Riders.cancelEdit()">Cancel</button>
+          </div></td>
+        </tr>`;
+      }
+      return `<tr>
+        <td>${esc(r.name)}</td>
+        <td class="num">${money(pending[r.id] || 0)}</td>
+        <td><div class="btn-row">
+          <button class="btn-sm btn-outline" onclick="Riders.edit('${r.id}')">Edit</button>
+          <button class="btn-sm btn-red" onclick="Riders.remove('${r.id}')">Delete</button>
+        </div></td>
+      </tr>`;
+    }, 'No riders yet.');
+  }
+
+  return { add, edit, cancelEdit, saveEdit, remove, populateSelects, render };
+})();
+
+
+/* ============================================================
+   ENTRIES
+   ============================================================ */
+const Entries = (() => {
+  let editingId = null;
+
+  function preview(){
+    const riderId = document.getElementById('entryRider').value;
+    const date = document.getElementById('entryDate').value || todayISO();
+    const km = parseFloat(document.getElementById('entryKm').value || 0);
+    const rate = parseFloat(document.getElementById('entryRate').value || 0);
+    const paid = parseFloat(document.getElementById('entryPaid').value || 0);
+    const total = km * rate, pending = total - paid;
+    let status = 'Unpaid';
+    if(total > 0 && paid >= total) status = 'Paid';
+    else if(paid > 0) status = 'Partial';
+
+    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
+    const lastDue = riderId ? lastDayDueFor(cumulativeMap, riderId, date) : 0;
+
+    document.getElementById('prevTotal').textContent = money(total);
+    document.getElementById('prevPending').textContent = money(pending);
+    document.getElementById('prevLastDue').textContent = money(lastDue);
+    document.getElementById('prevStatus').textContent = status;
+  }
+
+  async function save(){
+    const riderId = document.getElementById('entryRider').value;
+    const date = document.getElementById('entryDate').value;
+    const km = parseFloat(document.getElementById('entryKm').value || 0);
+    const rate = parseFloat(document.getElementById('entryRate').value || 0);
+    const paid = parseFloat(document.getElementById('entryPaid').value || 0);
+    const note = document.getElementById('entryNote').value.trim();
+
+    if(!riderId) return alert('Add a rider first.');
+    if(!date) return alert('Select a date.');
+    if(rate < 0 || paid < 0) return alert('Negative values are not allowed.');
+
+    const total = km * rate;
+    if(paid > total && !confirm('Paid amount is more than the total. Continue?')) return;
+
+    const pending = total - paid;
+    const name = riderMap()[riderId] || riderId;
+
+    if(editingId){
+      const idx = DataStore.state.entries.findIndex(e => e.id === editingId);
+      if(idx !== -1){
+        DataStore.state.entries[idx] = { ...DataStore.state.entries[idx], riderId, date, km, rate, total, paid, pending, note };
+        DataStore.log(`Edited entry — ${name} on ${date}`);
+      }
+    } else {
+      DataStore.state.entries.push({ id: DataStore.id('entry'), riderId, date, km, rate, total, paid, pending, note, createdAt: new Date().toISOString() });
+      DataStore.log(`Added entry — ${name} on ${date}`);
+    }
+    await DataStore.persist();
+    resetForm();
+    App.renderAll();
+  }
+
+  function edit(entryId){
+    PinSystem.require(() => {
+      const e = DataStore.state.entries.find(x => x.id === entryId);
+      if(!e) return;
+      editingId = entryId;
+      document.getElementById('entryTitle').textContent = 'Edit Ride Entry';
+      document.getElementById('entrySaveBtn').textContent = 'Update Entry';
+      document.getElementById('entryDate').value = e.date;
+      document.getElementById('entryRider').value = e.riderId;
+      document.getElementById('entryKm').value = e.km;
+      document.getElementById('entryRate').value = e.rate;
+      document.getElementById('entryPaid').value = e.paid;
+      document.getElementById('entryNote').value = e.note || '';
+      preview();
+      window.scrollTo({ top:0, behavior:'smooth' });
+    }, 'Enter PIN to edit this entry.');
+  }
+
+  function remove(entryId){
+    PinSystem.require(async () => {
+      if(!confirm('Delete this entry?')) return;
+      const e = DataStore.state.entries.find(x => x.id === entryId);
+      DataStore.state.entries = DataStore.state.entries.filter(x => x.id !== entryId);
+      DataStore.log('Deleted entry: ' + (e ? e.date : entryId));
+      await DataStore.persist();
+      App.renderAll();
+    }, 'Enter PIN to delete this entry.');
+  }
+
+  function resetForm(){
+    editingId = null;
+    document.getElementById('entryTitle').textContent = 'Add Ride Entry';
+    document.getElementById('entrySaveBtn').textContent = 'Save Entry';
+    document.getElementById('entryKm').value = '';
+    document.getElementById('entryRate').value = '3.5';
+    document.getElementById('entryPaid').value = '0';
+    document.getElementById('entryNote').value = '';
+    document.getElementById('entryDate').value = todayISO();
+    preview();
+  }
+
+  function clearFilters(){
+    document.getElementById('fSearch').value = '';
+    document.getElementById('fRider').value = '';
+    document.getElementById('fMonth').value = '';
+    document.getElementById('fStatus').value = '';
+    render();
+  }
+
+  function render(){
+    const rMap = riderMap();
+    const search = document.getElementById('fSearch').value.trim().toLowerCase();
+    const fRider = document.getElementById('fRider').value;
+    const fMonth = document.getElementById('fMonth').value;
+    const fStatus = document.getElementById('fStatus').value;
+
+    const pendingCumulative = riderPendingCumulativeByDate(DataStore.state.entries);
+
+    const rows = [...DataStore.state.entries]
+      .sort((a,b) => b.date.localeCompare(a.date))
+      .filter(e => {
+        const name = (rMap[e.riderId]||'').toLowerCase();
+        const note = (e.note||'').toLowerCase();
+        const status = entryStatus(e);
+        return (!search || name.includes(search) || note.includes(search))
+          && (!fRider || e.riderId === fRider)
+          && (!fMonth || e.date.startsWith(fMonth))
+          && (!fStatus || status === fStatus);
+      });
+
+    renderRows('entryRows', rows, 12, e => {
+      const status = entryStatus(e);
+      const lastDayDue = lastDayDueFor(pendingCumulative, e.riderId, e.date);
+      const riderTotalPending = (pendingCumulative[e.riderId] && pendingCumulative[e.riderId][e.date]) || 0;
+      return `<tr>
+        <td>${e.date}</td>
+        <td>${esc(rMap[e.riderId] || 'Unknown')}</td>
+        <td class="num">${money(e.km)}</td>
+        <td class="num">${money(e.rate)}</td>
+        <td class="num">${money(e.total)}</td>
+        <td class="num">${money(e.paid)}</td>
+        <td class="num">${money(e.pending)}</td>
+        <td class="num">${money(lastDayDue)}</td>
+        <td class="num">${money(riderTotalPending)}</td>
+        <td>${statusBadge(status)}</td>
+        <td>${esc(e.note||'')}</td>
+        <td><div class="btn-row">
+          <button class="btn-sm btn-outline" onclick="Entries.edit('${e.id}')">Edit</button>
+          <button class="btn-sm btn-red" onclick="Entries.remove('${e.id}')">Delete</button>
+        </div></td>
+      </tr>`;
+    }, 'No entries found.');
+  }
+
+  return { preview, save, edit, remove, resetForm, clearFilters, render };
+})();
+
+/* ============================================================
+   DASHBOARD + REPORTS
+   ============================================================ */
+const Dashboard = {
+  render(){
+    const entries = DataStore.state.entries;
+    const sum = key => entries.reduce((s,e) => s + Number(e[key]||0), 0);
+    const month = todayISO().slice(0,7);
+    const monthEntries = entries.filter(e => e.date.startsWith(month));
+    const msum = key => monthEntries.reduce((s,e) => s + Number(e[key]||0), 0);
+
+    document.getElementById('statKm').textContent = money(sum('km'));
+    document.getElementById('statAmount').textContent = money(sum('total'));
+    document.getElementById('statPaid').textContent = money(sum('paid'));
+    document.getElementById('statPending').textContent = money(sum('pending'));
+    document.getElementById('statMonthKm').textContent = money(msum('km'));
+    document.getElementById('statMonthAmount').textContent = money(msum('total'));
+  }
+};
+
+const Reports = (() => {
+  function startOfWeek(d){
+    const date = new Date(d);
+    const day = date.getDay();
+    date.setDate(date.getDate() - day + (day === 0 ? -6 : 1));
+    date.setHours(0,0,0,0);
+    return date;
+  }
+
+  function summarize(entries, keepAllRiders){
+    const table = {};
+    DataStore.state.riders.forEach(r => table[r.id] = { id:r.id, name:r.name, km:0, total:0, paid:0, pending:0 });
+    entries.forEach(e => {
+      if(!table[e.riderId]) return;
+      const t = table[e.riderId];
+      t.km += Number(e.km||0); t.total += Number(e.total||0);
+      t.paid += Number(e.paid||0); t.pending += Number(e.pending||0);
+    });
+    const rows = Object.values(table);
+    return keepAllRiders ? rows : rows.filter(r => r.km || r.total || r.paid || r.pending);
+  }
+
+  function tableHtml(rows, lastDueMap){
+    if(!rows.length) return `<tr class="empty-row"><td colspan="6">No data.</td></tr>`;
+    return rows.map(r => `<tr>
+      <td>${esc(r.name)}</td><td class="num">${money(r.km)}</td><td class="num">${money(r.total)}</td>
+      <td class="num">${money(r.paid)}</td><td class="num">${money(r.pending)}</td>
+      <td class="num">${money((lastDueMap && lastDueMap[r.id]) || 0)}</td>
+    </tr>`).join('');
+  }
+
+  function dailyTableHtml(rows, lastDueMap, totalPendingMap){
+    if(!rows.length) return `<tr class="empty-row"><td colspan="7">No data.</td></tr>`;
+    return rows.map(r => `<tr>
+      <td>${esc(r.name)}</td><td class="num">${money(r.km)}</td><td class="num">${money(r.total)}</td>
+      <td class="num">${money(r.paid)}</td><td class="num">${money(r.pending)}</td>
+      <td class="num">${money((lastDueMap && lastDueMap[r.id]) || 0)}</td>
+      <td class="num">${money((totalPendingMap && totalPendingMap[r.id]) || 0)}</td>
+    </tr>`).join('');
+  }
+
+  function render(){
+    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
+
+    const weekStart = startOfWeek(new Date());
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
+    const weekly = DataStore.state.entries.filter(e => { const d = new Date(e.date); return d >= weekStart && d <= weekEnd; });
+    document.getElementById('weeklyRows').innerHTML = tableHtml(summarize(weekly), buildLastDueMap(cumulativeMap, isoDateStr(weekStart)));
+
+    const day = document.getElementById('reportDay').value || todayISO();
+    const daily = DataStore.state.entries.filter(e => e.date === day);
+    document.getElementById('dailyRows').innerHTML = dailyTableHtml(summarize(daily, daily.length > 0), buildLastDueMap(cumulativeMap, day), riderPendingAsOf(day));
+
+    const month = document.getElementById('reportMonth').value;
+    const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
+    document.getElementById('monthlyRows').innerHTML = tableHtml(summarize(monthly), buildLastDueMap(cumulativeMap, month ? month + '-01' : ''));
+  }
+
+  function populateRiderSelect(){
+    const sel = document.getElementById('riderReportSelect');
+    const current = sel.value;
+    sel.innerHTML = DataStore.state.riders.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')
+      || '<option value="">No riders yet</option>';
+    if(current && DataStore.state.riders.some(r => r.id === current)) sel.value = current;
+  }
+
+  function renderRiderReport(){
+    const riderId = document.getElementById('riderReportSelect').value;
+    const entries = DataStore.state.entries
+      .filter(e => e.riderId === riderId)
+      .sort((a,b) => b.date.localeCompare(a.date));
+
+    const sum = key => entries.reduce((s,e) => s + Number(e[key]||0), 0);
+    document.getElementById('rrKm').textContent = money(sum('km'));
+    document.getElementById('rrTotal').textContent = money(sum('total'));
+    document.getElementById('rrPaid').textContent = money(sum('paid'));
+    document.getElementById('rrPending').textContent = money(sum('pending'));
+
+    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
+    renderRows('riderReportRows', entries, 7, e => `<tr>
+      <td>${e.date}</td>
+      <td class="num">${money(e.km)}</td>
+      <td class="num">${money(e.total)}</td>
+      <td class="num">${money(e.paid)}</td>
+      <td class="num">${money(e.pending)}</td>
+      <td class="num">${money(lastDayDueFor(cumulativeMap, riderId, e.date))}</td>
+      <td>${statusBadge(entryStatus(e))}</td>
+    </tr>`, 'No entries for this rider yet.');
+  }
+
+  function openRiderReport(){
+    populateRiderSelect();
+    renderRiderReport();
+    Menu.open('riderReportModal');
+  }
+
+  async function exportDaily(format){
+    const day = document.getElementById('reportDay').value || todayISO();
+    const daily = DataStore.state.entries.filter(e => e.date === day);
+    if(!daily.length) return alert('No entries found for this date.');
+    const rows = summarize(daily, true);
+    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
+    const lastDueMap = buildLastDueMap(cumulativeMap, day);
+    const totalPendingMap = riderPendingAsOf(day);
+    const subtitle = `Date: ${formatDateLong(new Date(day + 'T00:00:00'))}`;
+
+    if(format === 'csv'){
+      downloadFile(`daily-fuel-cost-report-${day}.csv`, toCsv([
+        ['Rider','KM','Total','Paid','Pending','Last Day Due','Total Pending'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, lastDueMap[r.id]||0, totalPendingMap[r.id]||0])
+      ]), 'text/csv;charset=utf-8;');
+    } else {
+      await exportVisual('Daily Fuel Cost Report', subtitle, ['Rider','KM','Total','Paid','Pending','Last Day Due','Total Pending'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(lastDueMap[r.id]||0), money(totalPendingMap[r.id]||0)]),
+        `daily-fuel-cost-report-${day}`, format);
+    }
+    DataStore.log(`Generated daily fuel cost report — ${day} (${format.toUpperCase()})`);
+    await DataStore.persist();
+    auditRows();
+  }
+
+  async function exportWeekly(format){
+    const weekStart = startOfWeek(new Date());
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
+    const weekly = DataStore.state.entries.filter(e => { const d = new Date(e.date); return d >= weekStart && d <= weekEnd; });
+    const rows = summarize(weekly);
+    const lastDueMap = buildLastDueMap(riderPendingCumulativeByDate(DataStore.state.entries), isoDateStr(weekStart));
+    const subtitle = `Week of ${formatDateLong(weekStart)} – ${formatDateLong(weekEnd)}`;
+
+    if(format === 'csv'){
+      downloadFile(`weekly-report-${todayISO()}.csv`, toCsv([
+        ['Rider','KM','Total','Paid','Pending','Last Day Due'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, lastDueMap[r.id]||0])
+      ]), 'text/csv;charset=utf-8;');
+    } else {
+      await exportVisual('Weekly Report', subtitle, ['Rider','KM','Total','Paid','Pending','Last Day Due'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(lastDueMap[r.id]||0)]),
+        `weekly-report-${todayISO()}`, format);
+    }
+    DataStore.log(`Generated weekly report (${format.toUpperCase()})`);
+    await DataStore.persist();
+    auditRows();
+  }
+
+  async function exportMonthly(format){
+    const month = document.getElementById('reportMonth').value;
+    const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
+    const rows = summarize(monthly);
+    const lastDueMap = buildLastDueMap(riderPendingCumulativeByDate(DataStore.state.entries), month ? month + '-01' : '');
+    const subtitle = month ? `Month of ${month}` : 'All time';
+
+    if(format === 'csv'){
+      downloadFile(`monthly-report-${month || 'all'}.csv`, toCsv([
+        ['Rider','KM','Total','Paid','Pending','Last Day Due'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, lastDueMap[r.id]||0])
+      ]), 'text/csv;charset=utf-8;');
+    } else {
+      await exportVisual('Monthly Summary', subtitle, ['Rider','KM','Total','Paid','Pending','Last Day Due'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(lastDueMap[r.id]||0)]),
+        `monthly-report-${month || 'all'}`, format);
+    }
+    DataStore.log(`Generated monthly report${month ? ' — ' + month : ''} (${format.toUpperCase()})`);
+    await DataStore.persist();
+    auditRows();
+  }
+
+  async function exportRiderReport(format){
+    const riderId = document.getElementById('riderReportSelect').value;
+    const name = riderMap()[riderId] || 'Unknown';
+    const entries = DataStore.state.entries.filter(e => e.riderId === riderId).sort((a,b) => a.date.localeCompare(b.date));
+    if(!entries.length) return alert('This rider has no entries yet.');
+    const slug = name.trim().toLowerCase().replace(/\s+/g,'-') || 'rider';
+    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
+
+    if(format === 'csv'){
+      const csv = toCsv([
+        ['Date','KM','Rate','Total','Paid','Pending','Last Day Due','Status','Note'],
+        ...entries.map(e => [e.date, e.km, e.rate, e.total, e.paid, e.pending, lastDayDueFor(cumulativeMap, riderId, e.date), entryStatus(e), e.note||''])
+      ]);
+      downloadFile(`rider-report-${slug}-${todayISO()}.csv`, csv, 'text/csv;charset=utf-8;');
+    } else {
+      const sum = key => entries.reduce((s,e) => s + Number(e[key]||0), 0);
+      const statChips = [
+        { label:'KM', value: money(sum('km')) },
+        { label:'Total', value: money(sum('total')) },
+        { label:'Paid', value: money(sum('paid')) },
+        { label:'Pending', value: money(sum('pending')) }
+      ];
+      await exportVisual(`Rider Report — ${name}`, `Generated ${formatDateLong(new Date())}`,
+        ['Date','KM','Rate','Total','Paid','Pending','Last Day Due','Status','Note'],
+        entries.map(e => [e.date, money(e.km), money(e.rate), money(e.total), money(e.paid), money(e.pending), money(lastDayDueFor(cumulativeMap, riderId, e.date)), entryStatus(e), e.note||'']),
+        `rider-report-${slug}-${todayISO()}`, format, statChips);
+    }
+    DataStore.log(`Generated rider report — ${name} (${format.toUpperCase()})`);
+    await DataStore.persist();
+    auditRows();
+  }
+
+  return { render, populateRiderSelect, renderRiderReport, openRiderReport, exportDaily, exportWeekly, exportMonthly, exportRiderReport };
+})();
+
+/* ============================================================
+   AUDIT LOG
+   ============================================================ */
+function auditRows(){
+  renderRows('auditRows', DataStore.state.auditLogs, 2,
+    l => `<tr><td class="num">${esc(new Date(l.time).toLocaleString())}</td><td>${esc(l.action)}</td></tr>`,
+    'No activity yet.');
+}
+
+/* ============================================================
+   BACKUP / RESTORE
+   ============================================================ */
+const Backup = (() => {
+  async function exportJSON(){
+    downloadFile(`ledger-backup-${todayISO()}.json`, JSON.stringify(DataStore.state, null, 2), 'application/json');
+    DataStore.log('Exported JSON backup');
+    await DataStore.persist();
+    auditRows();
+  }
+
+  async function exportCSV(){
+    const rMap = riderMap();
+    const rows = [['Date','Rider','KM','Rate','Total','Paid','Pending','Status','Note']];
+    [...DataStore.state.entries].sort((a,b) => a.date.localeCompare(b.date)).forEach(e => {
+      rows.push([e.date, rMap[e.riderId]||'Unknown', e.km, e.rate, e.total, e.paid, e.pending, entryStatus(e), e.note||'']);
+    });
+    downloadFile(`ledger-report-${todayISO()}.csv`, toCsv(rows), 'text/csv;charset=utf-8;');
+    DataStore.log('Exported CSV report');
+    await DataStore.persist();
+    auditRows();
+  }
+
+  function importFile(event){
+    const file = event.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try{
+        const imported = JSON.parse(e.target.result);
+        if(!Array.isArray(imported.riders) || !Array.isArray(imported.entries)){
+          alert('Invalid backup file.'); return;
+        }
+        DataStore.state.riders = imported.riders;
+        DataStore.state.entries = imported.entries;
+        DataStore.state.auditLogs = Array.isArray(imported.auditLogs) ? imported.auditLogs : [];
+        DataStore.log('Imported backup file');
+        await DataStore.persist();
+        App.renderAll();
+        alert('Backup imported successfully.');
+      }catch(err){ alert('Could not read that file.'); }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  return { exportJSON, exportCSV, import: importFile };
+})();
+
+/* ============================================================
+   APP BOOT
+   ============================================================ */
+const App = {
+  renderAll(){
+    Riders.populateSelects();
+    Riders.render();
+    Entries.render();
+    Dashboard.render();
+    Reports.render();
+    auditRows();
+    Entries.preview();
+    PinSystem.updateSessionUI();
+  },
+  renderAuditLog: auditRows
+};
+
+document.getElementById('entryDate').value = todayISO();
+document.getElementById('reportMonth').value = todayISO().slice(0,7);
+document.getElementById('reportDay').value = todayISO();
+document.getElementById('fMonth').value = '';
+document.getElementById('siteCredit').textContent = creditLine();
+
+/* DataStore.load() is now triggered automatically by Auth.onAuthStateChanged
+   once the user is signed in — see the Auth module above. */
+</script>
+</body>
+</html>

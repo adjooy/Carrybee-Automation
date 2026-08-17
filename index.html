@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operations Panel</title>
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/shell.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+</head>
+<body>
+
+<!-- ================= BOOT / AUTH GATE ================= -->
+
+<div id="bootLoading" class="boot-loading">
+  <div class="boot-spinner"></div>
+</div>
+
+<div id="authScreen" class="auth-screen hidden">
+  <div class="auth-card">
+    <div class="auth-badge">O</div>
+    <h2 id="authTitle">Welcome back</h2>
+    <p class="auth-sub" id="authSub">Sign in to access the Operations Panel.</p>
+
+    <div id="authError" class="auth-error" style="display:none;"></div>
+
+    <div class="auth-field hidden" id="authNameField">
+      <label for="authName">Full Name</label>
+      <input id="authName" type="text" placeholder="Your name" autocomplete="name">
+    </div>
+
+    <div class="auth-field">
+      <label for="authEmail">Email</label>
+      <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="username">
+    </div>
+
+    <div class="auth-row2" id="authRow2">
+      <div class="auth-field">
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" placeholder="At least 6 characters" autocomplete="current-password" onkeydown="if(event.key==='Enter')Auth.submit()">
+      </div>
+      <div class="auth-field hidden" id="authConfirmField">
+        <label for="authConfirmPassword">Confirm</label>
+        <input id="authConfirmPassword" type="password" placeholder="Repeat password" autocomplete="new-password" onkeydown="if(event.key==='Enter')Auth.submit()">
+      </div>
+    </div>
+
+    <button class="auth-submit" id="authSubmitBtn" onclick="Auth.submit()">Sign In</button>
+
+    <p class="auth-switch">
+      <span id="authToggleText">Don't have an account?</span>
+      <a href="#" onclick="Auth.toggleMode();return false;" id="authToggleLink">Create one</a>
+    </p>
+
+    <div class="auth-lock-note">🔒 Sign in once here — every section in the panel uses this same login.</div>
+  </div>
+</div>
+
+<div class="app hidden" id="appRoot">
+
+<!-- ================= SIDEBAR ================= -->
+
+<aside class="sidebar">
+
+  <div class="brand">
+    <div class="brand-logo">O</div>
+
+    <div class="brand-text-wrap">
+      <div class="brand-text">Operations</div>
+      <div class="brand-sub">Management Panel</div>
+    </div>
+  </div>
+
+  <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar" type="button">◂</button>
+
+  <nav class="menu">
+
+    <button class="menu-btn active" data-src="pages/parcel-panel/parcel-panel.html">
+      <span class="menu-icon">▦</span>
+      <span class="menu-label">Parcel Panel</span>
+    </button>
+
+    <button class="menu-btn" data-src="pages/payment-mail/payment-mail.html">
+      <span class="menu-icon">৳</span>
+      <span class="menu-label">Payment Mail</span>
+    </button>
+
+    <button class="menu-btn" data-src="pages/return-mail/return-mail.html">
+      <span class="menu-icon">↩</span>
+      <span class="menu-label">Return Mail</span>
+    </button>
+
+    <button class="menu-btn" data-src="pages/cid-extractor/cid-extractor.html">
+      <span class="menu-icon">⌕</span>
+      <span class="menu-label">CID Extractor</span>
+    </button>
+
+    <button class="menu-btn" data-src="pages/rider-km-tracker/rider-km-tracker.html">
+      <span class="menu-icon">🏍</span>
+      <span class="menu-label">Rider KM Tracker</span>
+    </button>
+
+    <button class="menu-btn" data-src="pages/return-hold-verification/return-hold-verification.html">
+      <span class="menu-icon">📋</span>
+      <span class="menu-label">Return &amp; Hold Verification</span>
+    </button>
+
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div class="sidebar-account" id="accountEmailLabel"></div>
+    <button class="sidebar-logout" id="logoutBtn" type="button" onclick="Auth.logout()">Log Out</button>
+  </div>
+
+</aside>
+
+
+<!-- ================= MAIN (VIEWER) ================= -->
+
+<main class="main">
+  <iframe id="viewer" class="viewer-frame" title="Panel content"></iframe>
+</main>
+
+</div>
+
+<script>
+/* =========================================================
+   FIREBASE AUTH — single login gate for the whole panel.
+   Uses the SAME Firebase project as the Rider KM Tracker page,
+   so once signed in here, that page (and any future page using
+   this project) recognizes the session automatically — no
+   second login — as long as the whole project is served from
+   one origin (see the note at the bottom of this file).
+========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyADm297kotJhrGe_TbM9dZCktoFDVBIIr4",
+  authDomain: "adjoy-rider-tracker.firebaseapp.com",
+  projectId: "adjoy-rider-tracker",
+  storageBucket: "adjoy-rider-tracker.firebasestorage.app",
+  messagingSenderId: "207253998908",
+  appId: "1:207253998908:web:17f549b4a947b327f5e239",
+  measurementId: "G-3CBEZGZVHM"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+const Auth = (() => {
+  let mode = 'signin'; // 'signin' | 'signup'
+
+  function toggleMode(){
+    mode = mode === 'signin' ? 'signup' : 'signin';
+    const isSignup = mode === 'signup';
+    document.getElementById('authTitle').textContent = isSignup ? 'Create your account' : 'Welcome back';
+    document.getElementById('authSub').textContent = isSignup
+      ? 'Set up your Operations Panel login in a few seconds.'
+      : 'Sign in to access the Operations Panel.';
+    document.getElementById('authSubmitBtn').textContent = isSignup ? 'Create Account' : 'Sign In';
+    document.getElementById('authToggleText').textContent = isSignup ? 'Already have an account?' : "Don't have an account?";
+    document.getElementById('authToggleLink').textContent = isSignup ? 'Sign in' : 'Create one';
+    document.getElementById('authNameField').classList.toggle('hidden', !isSignup);
+    document.getElementById('authConfirmField').classList.toggle('hidden', !isSignup);
+    document.getElementById('authRow2').classList.toggle('is-signup', isSignup);
+    document.getElementById('authName').value = '';
+    document.getElementById('authConfirmPassword').value = '';
+    hideError();
+  }
+
+  function showError(msg){
+    const el = document.getElementById('authError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+  function hideError(){
+    document.getElementById('authError').style.display = 'none';
+  }
+
+  async function submit(){
+    const name = document.getElementById('authName').value.trim();
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const confirmPassword = document.getElementById('authConfirmPassword').value;
+    hideError();
+
+    if(!email || !password) return showError('Enter both email and password.');
+    if(password.length < 6) return showError('Password must be at least 6 characters.');
+
+    if(mode === 'signup'){
+      if(!name) return showError('Enter your full name.');
+      if(password !== confirmPassword) return showError('Passwords do not match.');
+    }
+
+    const btn = document.getElementById('authSubmitBtn');
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = mode === 'signin' ? 'Signing in…' : 'Creating account…';
+    try{
+      if(mode === 'signin'){
+        await fbAuth.signInWithEmailAndPassword(email, password);
+      } else {
+        const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
+        await cred.user.updateProfile({ displayName: name });
+      }
+    }catch(e){
+      showError(friendlyError(e));
+      btn.textContent = originalLabel;
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  function friendlyError(e){
+    const map = {
+      'auth/invalid-email': 'That email address looks invalid.',
+      'auth/user-not-found': 'No account found with that email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/email-already-in-use': 'An account already exists with that email.',
+      'auth/weak-password': 'Password must be at least 6 characters.',
+      'auth/too-many-requests': 'Too many attempts. Please wait and try again.'
+    };
+    return map[e.code] || 'Something went wrong. Please try again.';
+  }
+
+  async function logout(){
+    if(!confirm('Log out of the Operations Panel?')) return;
+    await fbAuth.signOut();
+  }
+
+  fbAuth.onAuthStateChanged((user) => {
+    document.getElementById('bootLoading').classList.add('hidden');
+    if(user){
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('appRoot').classList.remove('hidden');
+      const label = document.getElementById('accountEmailLabel');
+      if(label) label.textContent = user.displayName ? `${user.displayName} · ${user.email}` : user.email;
+      initPanel();
+    } else {
+      document.getElementById('appRoot').classList.add('hidden');
+      document.getElementById('authScreen').classList.remove('hidden');
+    }
+  });
+
+  return { submit, toggleMode, logout };
+})();
+
+/* =========================================================
+   PANEL (sidebar collapse + menu navigation) — only runs
+   once the user is signed in.
+========================================================= */
+let panelStarted = false;
+function initPanel(){
+  if(panelStarted) return;
+  panelStarted = true;
+
+  const appEl = document.getElementById('appRoot');
+  const toggleBtn = document.getElementById('sidebarToggle');
+
+  document.querySelectorAll('.menu-btn').forEach(btn=>{
+    const lbl = btn.querySelector('.menu-label');
+    if(lbl) btn.title = lbl.textContent.trim();
+  });
+
+  function setCollapsed(collapsed){
+    appEl.classList.toggle('collapsed', collapsed);
+    toggleBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    try{ localStorage.setItem('opsPanelSidebarCollapsed', collapsed ? '1' : '0'); }catch(e){}
+  }
+
+  toggleBtn.addEventListener('click', ()=>{
+    setCollapsed(!appEl.classList.contains('collapsed'));
+  });
+
+  try{
+    if(localStorage.getItem('opsPanelSidebarCollapsed') === '1') setCollapsed(true);
+  }catch(e){}
+
+  const viewer = document.getElementById('viewer');
+  const buttons = document.querySelectorAll('.menu-btn');
+
+  function loadPage(btn){
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    viewer.src = btn.dataset.src;
+    try{ localStorage.setItem('opsPanelLastPage', btn.dataset.src); }catch(e){}
+  }
+
+  buttons.forEach(btn=>{
+    btn.addEventListener('click', ()=> loadPage(btn));
+  });
+
+  let startBtn = buttons[0];
+  try{
+    const last = localStorage.getItem('opsPanelLastPage');
+    if(last){
+      const match = Array.from(buttons).find(b => b.dataset.src === last);
+      if(match) startBtn = match;
+    }
+  }catch(e){}
+
+  loadPage(startBtn);
+}
+</script>
+
+</body>
+</html>

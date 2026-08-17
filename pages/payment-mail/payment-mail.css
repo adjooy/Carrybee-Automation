@@ -1,0 +1,21 @@
+.payment-table{
+  border-collapse:collapse;
+  margin-top:12px;
+  width:350px;
+  max-width:100%;
+  font-size:13px;
+}
+
+.payment-table th,
+.payment-table td{
+  border:1px solid #cfcfcf;
+  padding:5px 8px;
+}
+
+.payment-table th{
+  background:#f2f2f2;
+}
+
+.payment-table td:last-child{
+  text-align:center;
+}

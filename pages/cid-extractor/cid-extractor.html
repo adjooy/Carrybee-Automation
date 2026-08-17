@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CID Extractor</title>
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="cid-extractor.css">
+</head>
+<body>
+<div class="page-content">
+
+  <div class="page-head">
+
+    <div>
+
+      <h1 class="page-title">
+        CID Extractor
+      </h1>
+
+      <p class="page-sub">
+        Paste any random text and extract only unique Consignment IDs
+      </p>
+
+    </div>
+
+  </div>
+
+
+  <div class="card cid-card">
+
+    <div class="form-title">
+      Random Text
+    </div>
+
+    <div class="cid-info">
+      Paste your complete text below. The extractor will find only valid
+      CID numbers and remove duplicate CIDs automatically.
+    </div>
+
+
+    <textarea
+      id="cidInput"
+      class="cid-textarea"
+      placeholder="Paste random text here...
+"
+    ></textarea>
+
+
+    <div class="cid-actions">
+
+      <button
+        class="btn btn-dark"
+        id="extractCidBtn"
+      >
+        CID বের করুন
+      </button>
+
+      <button
+        class="btn btn-light"
+        id="clearCidBtn"
+      >
+        Clear
+      </button>
+
+      <span
+        class="cid-count"
+        id="cidCount"
+      >
+        0 unique CID পাওয়া গেছে
+      </span>
+
+    </div>
+
+
+    <textarea
+      id="cidOutput"
+      class="cid-output"
+      readonly
+      placeholder="Extracted CID list will appear here..."
+    ></textarea>
+
+
+    <div class="cid-actions">
+
+      <button
+        class="btn cid-copy"
+        id="copyCidBtn"
+      >
+        Copy CID List
+      </button>
+
+    </div>
+
+  </div>
+
+
+</div>
+<script src="../../assets/js/common.js"></script>
+<script src="cid-extractor.js"></script>
+</body>
+</html>

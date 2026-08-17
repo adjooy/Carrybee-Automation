@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<title>Hub Report Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --ink:#1b2430;
+    --paper:#f7f5f0;
+    --panel:#ffffff;
+    --line:#dcd6c8;
+    --accent:#b5502f;
+    --accent-soft:#f0e2d8;
+    --hold:#a86a00;
+    --hold-bg:#fdf1d9;
+    --return:#a3323b;
+    --return-bg:#fbe6e6;
+    --mono: 'Courier New', ui-monospace, monospace;
+    --sans: 'Segoe UI', Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); padding:28px 20px 60px;
+  }
+  .wrap{max-width:1180px; margin:0 auto;}
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom:3px solid var(--ink); padding-bottom:14px; margin-bottom:22px;
+    flex-wrap:wrap; gap:8px;
+  }
+  h1{
+    font-size:22px; letter-spacing:0.5px; margin:0; font-weight:800;
+  }
+  h1 span{color:var(--accent);}
+  .sub{font-size:12.5px; color:#6b6255; font-family:var(--mono);}
+
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:18px 20px; margin-bottom:18px;
+  }
+  .card h2{
+    font-size:13px; text-transform:uppercase; letter-spacing:1px; margin:0 0 12px;
+    color:#7a6f5f; font-weight:700;
+  }
+
+  .upload-row{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .filebtn{
+    background:var(--ink); color:#fff; border:none; padding:10px 18px;
+    border-radius:4px; cursor:pointer; font-size:13.5px; font-weight:600;
+  }
+  .filebtn:hover{background:#333;}
+  #fileInput{display:none;}
+  #fileName{font-family:var(--mono); font-size:12.5px; color:#6b6255;}
+
+  .fixedrow{display:flex; gap:24px; flex-wrap:wrap; margin-top:14px;}
+  .fixedrow label{display:block; font-size:11px; color:#8a8070; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;}
+  .fixedrow input{
+    font-family:var(--mono); font-size:13px; border:1px solid var(--line);
+    border-radius:4px; padding:7px 9px; background:#fffef9; min-width:190px;
+  }
+
+  .stats{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
+  .stat{
+    border:1px solid var(--line); border-radius:5px; padding:8px 14px;
+    font-family:var(--mono); font-size:12.5px; background:#fffef9;
+  }
+  .stat b{font-size:15px; display:block;}
+
+  .actions{display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap;}
+  .copybtn{
+    background:var(--accent); color:#fff; border:none; padding:10px 20px;
+    border-radius:4px; cursor:pointer; font-size:13.5px; font-weight:700;
+  }
+  .copybtn:hover{background:#9a4325;}
+  .copybtn:disabled{background:#c9beb0; cursor:not-allowed;}
+  .copied-msg{font-size:12.5px; color:#3d7a3d; font-weight:600; display:none;}
+
+  .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:6px;}
+  table{border-collapse:collapse; width:100%; font-size:12px; font-family:var(--mono); background:#fffef9;}
+  th{
+    background:var(--ink); color:#f2ece0; text-align:left; padding:8px 9px;
+    white-space:nowrap; position:sticky; top:0; font-weight:600; font-size:11px;
+    text-transform:uppercase; letter-spacing:0.3px;
+  }
+  td{
+    padding:6px 9px; border-bottom:1px solid var(--line); white-space:nowrap;
+    outline:none;
+  }
+  td[contenteditable="true"]:focus{background:var(--accent-soft);}
+  tr:hover td{background:#faf6ee;}
+  .status-pill{
+    padding:2px 8px; border-radius:10px; font-weight:700; font-size:10.5px;
+  }
+  .st-hold{background:var(--hold-bg); color:var(--hold);}
+  .st-return{background:var(--return-bg); color:var(--return);}
+
+  .empty{
+    text-align:center; padding:50px 20px; color:#9a8f7d; font-size:13.5px;
+  }
+  .note{font-size:11.5px; color:#9a8f7d; margin-top:10px; line-height:1.6;}
+  .note b{color:#6b6255;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Hub Report <span>Generator</span></h1>
+      <div class="sub">Moulvibazar-Barlekha &middot; RETURN + HOLD auto compiler</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Step 1 &middot; Raw CSV আপলোড করো</h2>
+    <div class="upload-row">
+      <button class="filebtn" onclick="document.getElementById('fileInput').click()">CSV বেছে নাও</button>
+      <input type="file" id="fileInput" accept=".csv">
+      <span id="fileName">এখনো কোনো ফাইল নেওয়া হয়নি</span>
+    </div>
+
+    <div class="fixedrow">
+      <div>
+        <label>Incharge ID</label>
+        <input id="inchargeId" value="CL-84478">
+      </div>
+      <div>
+        <label>Incharge Name</label>
+        <input id="inchargeName" value="Joy Kanto Dey">
+      </div>
+    </div>
+
+    <div class="stats" id="stats" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 2 &middot; রেজাল্ট &mdash; কপি করে শিটে বসাও</h2>
+    <div class="actions">
+      <button class="copybtn" id="copyBtn" disabled>ডেটা কপি করো (কলাম নেম ছাড়া)</button>
+      <span class="copied-msg" id="copiedMsg">✓ কপি হয়ে গেছে — এখন শিটে পেস্ট (Ctrl+V) করো</span>
+    </div>
+    <div style="margin-top:14px;" class="tablewrap">
+      <table id="resultTable">
+        <thead>
+          <tr id="headRow"></tr>
+        </thead>
+        <tbody id="bodyRows">
+          <tr><td class="empty" colspan="16">CSV আপলোড করলে এখানে RETURN আর HOLD কনসাইনমেন্টগুলো রেডি হয়ে দেখাবে</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      হলুদ হাইলাইট হওয়া সেলগুলো (ISSUE TYPE, VALIDITY, PROOF LINK) ডিফল্ট বসানো — দরকার হলে সরাসরি টেবিলে ক্লিক করে এডিট করে নাও। <b>ATTEMPT</b> কলামটা raw csv-এর <b>Attempt Count</b> থেকে সরাসরি নেওয়া; পুরনো রিপোর্টে HOLD কেসে এটা ১ কম দেখা গিয়েছিল, তাই মিলিয়ে দেখে দরকার হলে ঠিক করে নিও।
+    </div>
+  </div>
+</div>
+
+<script>
+const HEADERS = ["HUB NAME","UPDATED DATE","INCHARGE ID","INCHARGE NAME","CONSIGNMENT ID","RECEIVING DATE","ATTEMPT","STATUS","HOLD REASON : Incharge Verified","ISSUE TYPE","VALIDITY","ডেলিভারি হবে কবে [ DATE ]","AGENT ID","AGENT NAME","CALL","PROOF LINK [ IF ANY ]"];
+
+const headRow = document.getElementById('headRow');
+HEADERS.forEach(h=>{
+  const th = document.createElement('th');
+  th.textContent = h;
+  headRow.appendChild(th);
+});
+
+function excelSerialToDate(serial){
+  // Excel/Sheets serial date, epoch 1899-12-30
+  const ms = (Number(serial) - 25569) * 86400 * 1000;
+  return new Date(ms);
+}
+function fmtDate(d){
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const dd = String(d.getUTCDate()).padStart(2,'0');
+  const mm = months[d.getUTCMonth()];
+  const yy = d.getUTCFullYear();
+  return `${dd}-${mm}-${yy}`;
+}
+// Parses either an Excel serial number (e.g. 46246) or a plain date string
+// (e.g. "2026-08-13") and returns a UTC Date object, or null if unparseable.
+function parseAnyDate(value){
+  if(value===undefined || value===null || value==='') return null;
+  const str = String(value).trim();
+  if(str==='') return null;
+  // plain numeric -> excel serial
+  if(/^\d+(\.\d+)?$/.test(str)){
+    return excelSerialToDate(Number(str));
+  }
+  // ISO-ish "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS"
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(isoMatch){
+    return new Date(Date.UTC(Number(isoMatch[1]), Number(isoMatch[2])-1, Number(isoMatch[3])));
+  }
+  // fallback to native parsing
+  const d = new Date(str);
+  if(!isNaN(d.getTime())) return d;
+  return null;
+}
+function serialFmt(value){
+  const d = parseAnyDate(value);
+  if(!d) return '';
+  return fmtDate(d);
+}
+
+let currentRows = [];
+
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('fileName').textContent = file.name;
+  Papa.parse(file, {
+    header:true,
+    skipEmptyLines:true,
+    encoding:"UTF-8",
+    complete: function(res){
+      processRows(res.data);
+    }
+  });
+});
+
+function processRows(data){
+  const inchargeId = document.getElementById('inchargeId').value.trim();
+  const inchargeName = document.getElementById('inchargeName').value.trim();
+
+  const filtered = data.filter(r => {
+    const st = (r['Order Status']||'').trim().toLowerCase();
+    return st === 'return' || st === 'delivery_on_hold';
+  });
+
+  currentRows = filtered.map(r=>{
+    const st = (r['Order Status']||'').trim().toLowerCase();
+    const statusOut = st === 'return' ? 'RETURN' : 'HOLD';
+    const updatedSerial = r['Updated At'];
+    let deliveryDate = '';
+    const ud = parseAnyDate(updatedSerial);
+    if(ud){
+      ud.setUTCDate(ud.getUTCDate()+1);
+      deliveryDate = fmtDate(ud);
+    }
+    return {
+      'HUB NAME': r['Current Hub'] || '',
+      'UPDATED DATE': serialFmt(r['Updated At']),
+      'INCHARGE ID': inchargeId,
+      'INCHARGE NAME': inchargeName,
+      'CONSIGNMENT ID': r['Consignment Id'] || '',
+      'RECEIVING DATE': serialFmt(r['LMHAt']),
+      'ATTEMPT': r['Attempt Count'] || '',
+      'STATUS': statusOut,
+      'HOLD REASON : Incharge Verified': r['Remarks'] || '',
+      'ISSUE TYPE': 'CUSTOMER ISSUE',
+      'VALIDITY': 'VALID',
+      'ডেলিভারি হবে কবে [ DATE ]': deliveryDate,
+      'AGENT ID': r['DA Employee Id'] || '',
+      'AGENT NAME': r['DA Name'] || '',
+      'CALL': 'PHONE CALL',
+      'PROOF LINK [ IF ANY ]': ''
+    };
+  });
+
+  renderTable();
+  renderStats(filtered.length, data.length);
+  document.getElementById('copyBtn').disabled = currentRows.length===0;
+}
+
+function renderStats(matched, total){
+  const holdCount = currentRows.filter(r=>r.STATUS==='HOLD').length;
+  const returnCount = currentRows.filter(r=>r.STATUS==='RETURN').length;
+  const statsEl = document.getElementById('stats');
+  statsEl.style.display='flex';
+  statsEl.innerHTML = `
+    <div class="stat">মোট রো (raw)<b>${total}</b></div>
+    <div class="stat">মিলেছে (RETURN+HOLD)<b>${matched}</b></div>
+    <div class="stat">HOLD<b style="color:var(--hold)">${holdCount}</b></div>
+    <div class="stat">RETURN<b style="color:var(--return)">${returnCount}</b></div>
+  `;
+}
+
+function renderTable(){
+  const tbody = document.getElementById('bodyRows');
+  tbody.innerHTML = '';
+  if(currentRows.length===0){
+    tbody.innerHTML = `<tr><td class="empty" colspan="16">এই CSV-তে RETURN বা HOLD স্ট্যাটাসের কোনো কনসাইনমেন্ট পাওয়া যায়নি</td></tr>`;
+    return;
+  }
+  currentRows.forEach((row)=>{
+    const tr = document.createElement('tr');
+    HEADERS.forEach(h=>{
+      const td = document.createElement('td');
+      if(h==='STATUS'){
+        const pill = document.createElement('span');
+        pill.className = 'status-pill ' + (row[h]==='HOLD' ? 'st-hold' : 'st-return');
+        pill.textContent = row[h];
+        td.appendChild(pill);
+      } else {
+        td.textContent = row[h];
+        if(['ISSUE TYPE','VALIDITY','PROOF LINK [ IF ANY ]'].includes(h)){
+          td.contentEditable = 'true';
+        }
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('copyBtn').addEventListener('click', function(){
+  const rows = document.querySelectorAll('#resultTable tbody tr');
+  let tsv = '';
+  rows.forEach(tr=>{
+    const cells = Array.from(tr.children).map(td=>{
+      const pill = td.querySelector('.status-pill');
+      return (pill ? pill.textContent : td.textContent).trim();
+    });
+    tsv += cells.join('\t') + '\n';
+  });
+  navigator.clipboard.writeText(tsv).then(()=>{
+    const msg = document.getElementById('copiedMsg');
+    msg.style.display='inline';
+    setTimeout(()=>{msg.style.display='none';}, 3000);
+  });
+});
+</script>
+</body>
+</html>

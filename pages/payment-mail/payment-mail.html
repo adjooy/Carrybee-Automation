@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Mail Generator</title>
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="../../assets/css/mail-shared.css">
+<link rel="stylesheet" href="payment-mail.css">
+</head>
+<body>
+<div class="page-content">
+
+  <div class="page-head">
+
+    <div>
+      <h1 class="page-title">Payment Mail Generator</h1>
+
+      <p class="page-sub">
+        Generate payment submission mail from your payment message
+      </p>
+
+    </div>
+
+  </div>
+
+
+  <div class="mail-layout">
+
+
+    <!-- FORM -->
+
+    <div class="card mail-form">
+
+      <div class="form-title">
+        Payment Message
+      </div>
+
+
+      <div class="form-group">
+
+        <label class="form-label">
+          Paste Payment Message
+        </label>
+
+        <textarea
+          class="form-textarea"
+          id="paymentMessage"
+          placeholder="Paste your bKash payment message here..."
+        ></textarea>
+
+      </div>
+
+
+      <div class="form-actions">
+
+        <button
+          class="btn btn-primary"
+          id="generatePaymentBtn"
+        >
+          Generate Mail
+        </button>
+
+        <button
+          class="btn btn-light"
+          id="clearPaymentBtn"
+        >
+          Clear
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- PREVIEW -->
+
+    <div class="card mail-preview">
+
+      <div class="preview-top">
+
+        <div class="preview-title">
+          Mail Preview
+        </div>
+
+        <div class="preview-badge">
+          Gmail Ready
+        </div>
+
+      </div>
+
+
+      <div
+        class="email-paper"
+        id="paymentPreview"
+      >
+        <span style="color:#98a2b3">
+          Preview will appear here
+        </span>
+      </div>
+
+
+      <div class="form-actions">
+
+        <button
+          class="btn btn-primary"
+          id="openPaymentGmail"
+          style="display:none"
+        >
+          Open Gmail
+        </button>
+
+        <button
+          class="btn btn-light"
+          id="copyPaymentBtn"
+          style="display:none"
+        >
+          Copy Mail
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+</div>
+<script src="../../assets/js/common.js"></script>
+<script src="payment-mail.js"></script>
+</body>
+</html>
