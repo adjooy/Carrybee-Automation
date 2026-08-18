@@ -5,8 +5,8 @@ let returnMailText = '';
 let returnSubject = '';
 
 
-   RETURN MAIL
-========================================================= */
+  //  RETURN MAIL
+
 
 const RETURN_TO =
   'return@carrybee.com,centralsort@carrybee.com';
