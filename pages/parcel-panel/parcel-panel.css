@@ -108,11 +108,69 @@ input[type=file]{
   justify-content:space-between;
   align-items:center;
   margin-bottom:13px;
+  flex-wrap:wrap;
+  gap:10px;
 }
 
 .toolbar-info{
   font-size:12px;
   color:var(--muted);
+}
+
+.toolbar-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.sheet-date-input{
+  border:1px solid var(--border);
+  background:#fafbfc;
+  border-radius:9px;
+  padding:9px 11px;
+  outline:none;
+  font-size:12px;
+  color:var(--text);
+}
+
+.sheet-date-input:focus{
+  border-color:#93b4f8;
+  box-shadow:0 0 0 3px #eff6ff;
+  background:white;
+}
+
+.upload-msg{
+  margin:0 0 16px;
+  padding:10px 14px;
+  border-radius:10px;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.5;
+}
+
+.upload-msg.upload-info{
+  background:#eff6ff;
+  border:1px solid #bfdbfe;
+  color:#1d4ed8;
+}
+
+.upload-msg.upload-success{
+  background:#ecfdf3;
+  border:1px solid #bbf0d0;
+  color:#15803d;
+}
+
+.upload-msg.upload-warn{
+  background:#fffbeb;
+  border:1px solid #fde68a;
+  color:#b45309;
+}
+
+.upload-msg.upload-error{
+  background:#fff1f2;
+  border:1px solid #fecdd3;
+  color:#b91c1c;
 }
 
 .da-card{
