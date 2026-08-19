@@ -1,5 +1,36 @@
 /* Parcel Panel logic — depends on assets/js/common.js (copyText) */
 
+/* =========================================================
+   SHEET UPLOAD CONFIG
+   Paste your deployed Google Apps Script Web App URL below
+   (see Code.gs install instructions). Leave as-is and the
+   Upload button will show a setup reminder instead of failing
+   silently.
+========================================================= */
+const SHEET_UPLOAD_URL =
+  'https://script.google.com/macros/s/AKfycbx7DRqftl-WhqcT3ueHIOicWkclhIS7tMEJnCVszQQcLrGUytKHf8IMtIwKTcLc0JftSw/exec';
+
+
+
+function sheetTabName(dateStr){
+
+  const d =
+    new Date(dateStr+'T00:00:00');
+
+
+  const months=[
+
+    'Jan','Feb','Mar','Apr','May','Jun',
+    'Jul','Aug','Sep','Oct','Nov','Dec'
+
+  ];
+
+
+  return `${months[d.getMonth()]} ${d.getDate()}`;
+
+}
+
+
 const CATS = [
 
   {
@@ -152,6 +183,8 @@ function resetCSV(){
 
 
   statusEl.style.display='none';
+
+  setUploadMsg('');
 
 
   document.getElementById(
@@ -834,3 +867,242 @@ function render(){
 }
 
 
+/* =========================================================
+   UPLOAD TO GOOGLE SHEET
+========================================================= */
+
+function setUploadMsg(text,type){
+
+  const el =
+    document.getElementById('uploadMsg');
+
+  if(!el) return;
+
+  el.textContent = text;
+  el.className =
+    'upload-msg' +
+    (type ? ' upload-'+type : '');
+
+  el.style.display =
+    text ? 'block' : 'none';
+
+}
+
+
+async function uploadToSheet(){
+
+  if(
+    !SHEET_UPLOAD_URL ||
+    SHEET_UPLOAD_URL.includes('PASTE_YOUR')
+  ){
+
+    setUploadMsg(
+      'Apps Script URL এখনো বসানো হয়নি — parcel-panel.js এর SHEET_UPLOAD_URL এ তোমার deployed Web App URL বসাও।',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  if(!rawRows.length){
+
+    setUploadMsg(
+      'আগে একটা CSV আপলোড করো।',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  const dateInput =
+    document.getElementById('sheetDate');
+
+  const dateStr =
+    dateInput && dateInput.value
+    ? dateInput.value
+    : `${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`;
+
+
+  const tabName =
+    sheetTabName(dateStr);
+
+
+  const groups =
+    groupByDA()
+    .filter(da =>
+      da.name !== 'Unassigned' &&
+      da.emp
+    );
+
+
+  if(!groups.length){
+
+    setUploadMsg(
+      'কোনো DA-assigned parcel পাওয়া যায়নি, আপলোড করার কিছু নেই।',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  const records =
+    groups.map(da=>{
+
+      const cols =
+        daCols(da);
+
+      return {
+
+        employeeId: da.emp,
+        agentName: da.name,
+        columns: cols
+
+      };
+
+    });
+
+
+  const btn =
+    document.getElementById('uploadSheetBtn');
+
+  const originalLabel =
+    btn ? btn.textContent : '';
+
+  if(btn){
+
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+
+  }
+
+  setUploadMsg(
+    `"${tabName}" ট্যাবে পাঠানো হচ্ছে…`,
+    'info'
+  );
+
+
+  try{
+
+    const res =
+      await fetch(SHEET_UPLOAD_URL,{
+
+        method:'POST',
+
+        headers:{
+          'Content-Type':'text/plain;charset=utf-8'
+        },
+
+        body: JSON.stringify({
+          tabName,
+          records
+        })
+
+      });
+
+
+    const data =
+      await res.json();
+
+
+    if(!data.ok){
+
+      setUploadMsg(
+        'Upload ব্যর্থ: '+ (data.error||'Unknown error'),
+        'error'
+      );
+
+      return;
+
+    }
+
+
+    let msg =
+      `✓ "${tabName}" ট্যাবে ${data.updated.length} জন DA আপডেট হয়েছে।`;
+
+
+    if(data.skipped && data.skipped.length){
+
+      msg +=
+        ` স্কিপ হয়েছে (row মেলেনি): ${data.skipped.join(', ')}`;
+
+    }
+
+
+    if(data.failed && data.failed.length){
+
+      msg +=
+        ` ব্যর্থ হয়েছে (আবার Upload চাপো): ${data.failed.join('; ')}`;
+
+    }
+
+
+    setUploadMsg(
+      msg,
+      (data.failed && data.failed.length)
+      ? 'error'
+      : (data.skipped && data.skipped.length)
+        ? 'warn'
+        : 'success'
+    );
+
+
+  }catch(err){
+
+    setUploadMsg(
+      'Upload ব্যর্থ: '+err.message,
+      'error'
+    );
+
+  }finally{
+
+    if(btn){
+
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+
+    }
+
+  }
+
+}
+
+
+document.addEventListener(
+  'DOMContentLoaded',
+  ()=>{
+
+    const sheetDate =
+      document.getElementById('sheetDate');
+
+
+    if(sheetDate && !sheetDate.value){
+
+      const now = new Date();
+
+      sheetDate.value =
+        `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+    }
+
+
+    const uploadBtn =
+      document.getElementById('uploadSheetBtn');
+
+
+    if(uploadBtn){
+
+      uploadBtn.addEventListener(
+        'click',
+        uploadToSheet
+      );
+
+    }
+
+  }
+);
