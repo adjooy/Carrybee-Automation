@@ -95,6 +95,23 @@
   }
   .st-hold{background:var(--hold-bg); color:var(--hold);}
   .st-return{background:var(--return-bg); color:var(--return);}
+  .st-other{background:#e6e3f5; color:#4c3d99;}
+
+  .status-filters{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;}
+  .status-chip{
+    display:flex; align-items:center; gap:6px;
+    border:1px solid var(--line); border-radius:20px;
+    padding:6px 12px; font-family:var(--mono); font-size:11.5px;
+    background:#fffef9; cursor:pointer; user-select:none;
+  }
+  .status-chip:hover{border-color:var(--accent);}
+  .status-chip input{accent-color:var(--accent); cursor:pointer;}
+  .status-chip b{color:#6b6255; font-weight:700;}
+  .status-filter-actions{display:flex; gap:10px; margin-top:12px; align-items:center;}
+  .linkbtn{
+    background:none; border:none; color:var(--accent); font-size:11.5px;
+    font-weight:700; cursor:pointer; padding:0; text-decoration:underline;
+  }
 
   .empty{
     text-align:center; padding:50px 20px; color:#9a8f7d; font-size:13.5px;
@@ -134,8 +151,20 @@
     <div class="stats" id="stats" style="display:none;"></div>
   </div>
 
+  <div class="card" id="statusFilterCard" style="display:none;">
+    <h2>Step 2 &middot; কোন Status গুলো নিবে বেছে নাও</h2>
+    <div class="status-filters" id="statusFilters"></div>
+    <div class="status-filter-actions">
+      <button class="linkbtn" id="selectAllStatus">সব সিলেক্ট করো</button>
+      <button class="linkbtn" id="selectNoneStatus">সব বাতিল করো</button>
+    </div>
+    <div class="note">
+      ডিফল্টভাবে <b>return</b> আর <b>delivery_on_hold</b> — এই দুটো টিক দেওয়া থাকে (আগে যেভাবে হতো ঠিক সেভাবেই)। CSV-তে যত রকম Order Status আছে সবই এখানে দেখাবে — ইচ্ছেমতো টিক দিয়ে/উঠিয়ে নিচের রেজাল্ট টেবিল সাথে সাথে আপডেট হয়ে যাবে।
+    </div>
+  </div>
+
   <div class="card">
-    <h2>Step 2 &middot; রেজাল্ট &mdash; কপি করে শিটে বসাও</h2>
+    <h2>Step 3 &middot; রেজাল্ট &mdash; কপি করে শিটে বসাও</h2>
     <div class="actions">
       <button class="copybtn" id="copyBtn" disabled>ডেটা কপি করো (কলাম নেম ছাড়া)</button>
       <span class="copied-msg" id="copiedMsg">✓ কপি হয়ে গেছে — এখন শিটে পেস্ট (Ctrl+V) করো</span>
@@ -146,7 +175,7 @@
           <tr id="headRow"></tr>
         </thead>
         <tbody id="bodyRows">
-          <tr><td class="empty" colspan="16">CSV আপলোড করলে এখানে RETURN আর HOLD কনসাইনমেন্টগুলো রেডি হয়ে দেখাবে</td></tr>
+          <tr><td class="empty" colspan="16">CSV আপলোড করলে এখানে Status ফিল্টার অপশন আসবে, আর যা যা টিক দেবে সেগুলোর কনসাইনমেন্ট এখানে রেডি হয়ে দেখাবে</td></tr>
         </tbody>
       </table>
     </div>
@@ -205,6 +234,7 @@ function serialFmt(value){
 }
 
 let currentRows = [];
+let uploadedRawData = [];
 
 document.getElementById('fileInput').addEventListener('change', function(e){
   const file = e.target.files[0];
@@ -215,23 +245,80 @@ document.getElementById('fileInput').addEventListener('change', function(e){
     skipEmptyLines:true,
     encoding:"UTF-8",
     complete: function(res){
-      processRows(res.data);
+      uploadedRawData = res.data || [];
+      buildStatusFilters(uploadedRawData);
+      processRows();
     }
   });
 });
 
-function processRows(data){
+function buildStatusFilters(data){
+  const counts = {};
+  data.forEach(r=>{
+    const raw = (r['Order Status']||'').trim();
+    if(!raw) return;
+    counts[raw] = (counts[raw]||0) + 1;
+  });
+
+  const statuses = Object.keys(counts).sort();
+  const container = document.getElementById('statusFilters');
+  container.innerHTML = '';
+
+  if(!statuses.length){
+    document.getElementById('statusFilterCard').style.display = 'none';
+    return;
+  }
+
+  statuses.forEach(st=>{
+    const stLower = st.toLowerCase();
+    const defaultChecked = stLower === 'return' || stLower === 'delivery_on_hold';
+
+    const label = document.createElement('label');
+    label.className = 'status-chip';
+    label.innerHTML =
+      `<input type="checkbox" value="${st.replace(/"/g,'&quot;')}" ${defaultChecked?'checked':''}>`+
+      `<span>${st} <b>(${counts[st]})</b></span>`;
+
+    label.querySelector('input').addEventListener('change', processRows);
+    container.appendChild(label);
+  });
+
+  document.getElementById('statusFilterCard').style.display = 'block';
+}
+
+function getSelectedStatuses(){
+  return Array.from(
+    document.querySelectorAll('#statusFilters input[type="checkbox"]:checked')
+  ).map(cb => cb.value.trim().toLowerCase());
+}
+
+document.getElementById('selectAllStatus').addEventListener('click', ()=>{
+  document.querySelectorAll('#statusFilters input[type="checkbox"]').forEach(cb=> cb.checked = true);
+  processRows();
+});
+
+document.getElementById('selectNoneStatus').addEventListener('click', ()=>{
+  document.querySelectorAll('#statusFilters input[type="checkbox"]').forEach(cb=> cb.checked = false);
+  processRows();
+});
+
+function processRows(){
   const inchargeId = document.getElementById('inchargeId').value.trim();
   const inchargeName = document.getElementById('inchargeName').value.trim();
 
-  const filtered = data.filter(r => {
+  const selected = getSelectedStatuses();
+
+  const filtered = uploadedRawData.filter(r => {
     const st = (r['Order Status']||'').trim().toLowerCase();
-    return st === 'return' || st === 'delivery_on_hold';
+    return selected.includes(st);
   });
 
   currentRows = filtered.map(r=>{
-    const st = (r['Order Status']||'').trim().toLowerCase();
+    const stRaw = (r['Order Status']||'').trim();
+    const st = stRaw.toLowerCase();
+
     const statusOut = st === 'return' ? 'RETURN' : 'HOLD';
+
     const updatedSerial = r['Updated At'];
     let deliveryDate = '';
     const ud = parseAnyDate(updatedSerial);
@@ -260,20 +347,32 @@ function processRows(data){
   });
 
   renderTable();
-  renderStats(filtered.length, data.length);
+  renderStats(filtered.length, uploadedRawData.length);
   document.getElementById('copyBtn').disabled = currentRows.length===0;
 }
 
 function renderStats(matched, total){
-  const holdCount = currentRows.filter(r=>r.STATUS==='HOLD').length;
-  const returnCount = currentRows.filter(r=>r.STATUS==='RETURN').length;
+  const byStatus = {};
+  currentRows.forEach(r=>{
+    byStatus[r.STATUS] = (byStatus[r.STATUS]||0) + 1;
+  });
+
+  const statColor = (s)=>{
+    if(s==='HOLD') return 'var(--hold)';
+    if(s==='RETURN') return 'var(--return)';
+    return '#4c3d99';
+  };
+
+  const statChips = Object.keys(byStatus).sort().map(s=>
+    `<div class="stat">${s}<b style="color:${statColor(s)}">${byStatus[s]}</b></div>`
+  ).join('');
+
   const statsEl = document.getElementById('stats');
   statsEl.style.display='flex';
   statsEl.innerHTML = `
     <div class="stat">মোট রো (raw)<b>${total}</b></div>
-    <div class="stat">মিলেছে (RETURN+HOLD)<b>${matched}</b></div>
-    <div class="stat">HOLD<b style="color:var(--hold)">${holdCount}</b></div>
-    <div class="stat">RETURN<b style="color:var(--return)">${returnCount}</b></div>
+    <div class="stat">মিলেছে (সিলেক্ট করা status)<b>${matched}</b></div>
+    ${statChips}
   `;
 }
 
@@ -281,7 +380,7 @@ function renderTable(){
   const tbody = document.getElementById('bodyRows');
   tbody.innerHTML = '';
   if(currentRows.length===0){
-    tbody.innerHTML = `<tr><td class="empty" colspan="16">এই CSV-তে RETURN বা HOLD স্ট্যাটাসের কোনো কনসাইনমেন্ট পাওয়া যায়নি</td></tr>`;
+    tbody.innerHTML = `<tr><td class="empty" colspan="16">সিলেক্ট করা Status অনুযায়ী কোনো কনসাইনমেন্ট পাওয়া যায়নি — উপরে অন্তত একটা Status টিক দাও</td></tr>`;
     return;
   }
   currentRows.forEach((row)=>{
