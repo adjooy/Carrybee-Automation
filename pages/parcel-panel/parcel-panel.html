@@ -83,11 +83,29 @@
 
     <div class="toolbar-info" id="daCount"></div>
 
-    <button class="btn btn-light" id="copyAllBtn">
-      Copy All
-    </button>
+    <div class="toolbar-actions">
+
+      <input
+        type="date"
+        class="sheet-date-input"
+        id="sheetDate"
+        title="Sheet tab date (e.g. Aug 18)"
+      >
+
+      <button class="btn btn-primary" id="uploadSheetBtn">
+        Upload to Sheet
+      </button>
+
+      <button class="btn btn-light" id="copyAllBtn">
+        Copy All
+      </button>
+
+    </div>
 
   </div>
+
+
+  <div class="upload-msg" id="uploadMsg" style="display:none"></div>
 
 
   <div id="cards"></div>
