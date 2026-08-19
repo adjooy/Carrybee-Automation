@@ -75,7 +75,22 @@
   }
   .copybtn:hover{background:#9a4325;}
   .copybtn:disabled{background:#c9beb0; cursor:not-allowed;}
+  .uploadbtn{
+    background:#1b2430; color:#fff; border:none; padding:10px 20px;
+    border-radius:4px; cursor:pointer; font-size:13.5px; font-weight:700;
+  }
+  .uploadbtn:hover{background:#333;}
+  .uploadbtn:disabled{background:#c9beb0; cursor:not-allowed;}
   .copied-msg{font-size:12.5px; color:#3d7a3d; font-weight:600; display:none;}
+
+  .upload-msg{
+    margin-top:12px; padding:10px 14px; border-radius:6px;
+    font-size:12.5px; font-weight:600; line-height:1.5;
+  }
+  .upload-msg.up-info{background:#eef2fb; border:1px solid #c7d3ee; color:#2a4494;}
+  .upload-msg.up-success{background:#eafbef; border:1px solid #bfe8cb; color:#1f7a3d;}
+  .upload-msg.up-warn{background:var(--hold-bg); border:1px solid #f0d9a0; color:var(--hold);}
+  .upload-msg.up-error{background:var(--return-bg); border:1px solid #f0bcc0; color:var(--return);}
 
   .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:6px;}
   table{border-collapse:collapse; width:100%; font-size:12px; font-family:var(--mono); background:#fffef9;}
@@ -146,6 +161,10 @@
         <label>Incharge Name</label>
         <input id="inchargeName" value="Joy Kanto Dey">
       </div>
+      <div>
+        <label>Updated Date</label>
+        <input type="date" id="updatedDateInput">
+      </div>
     </div>
 
     <div class="stats" id="stats" style="display:none;"></div>
@@ -167,8 +186,10 @@
     <h2>Step 3 &middot; রেজাল্ট &mdash; কপি করে শিটে বসাও</h2>
     <div class="actions">
       <button class="copybtn" id="copyBtn" disabled>ডেটা কপি করো (কলাম নেম ছাড়া)</button>
+      <button class="uploadbtn" id="uploadSheetBtn" disabled>Upload to Sheet</button>
       <span class="copied-msg" id="copiedMsg">✓ কপি হয়ে গেছে — এখন শিটে পেস্ট (Ctrl+V) করো</span>
     </div>
+    <div class="upload-msg" id="uploadMsg" style="display:none;"></div>
     <div style="margin-top:14px;" class="tablewrap">
       <table id="resultTable">
         <thead>
@@ -187,6 +208,25 @@
 
 <script>
 const HEADERS = ["HUB NAME","UPDATED DATE","INCHARGE ID","INCHARGE NAME","CONSIGNMENT ID","RECEIVING DATE","ATTEMPT","STATUS","HOLD REASON : Incharge Verified","ISSUE TYPE","VALIDITY","ডেলিভারি হবে কবে [ DATE ]","AGENT ID","AGENT NAME","CALL","PROOF LINK [ IF ANY ]"];
+
+/* =========================================================
+   SHEET UPLOAD CONFIG
+   Paste your deployed Google Apps Script Web App URL below.
+   This must be a script installed on the "SYLHET DV - HOLD &
+   RETURN VERIFICATION" spreadsheet (NOT the Parcel Panel one —
+   they are two different spreadsheets, each needs its own
+   Apps Script deployment).
+========================================================= */
+const SHEET_UPLOAD_URL =
+  'https://script.google.com/macros/s/AKfycbzXopXHPAgflwMc3j1a3_YLBVJ9sUy1eKBNaOxS6evw4aZbdJ1D0kfTdSV1Rv0ftAsaqQ/exec';
+
+// Default the Updated Date field to today
+(function(){
+  const el = document.getElementById('updatedDateInput');
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  el.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+})();
 
 const headRow = document.getElementById('headRow');
 HEADERS.forEach(h=>{
@@ -246,6 +286,7 @@ document.getElementById('fileInput').addEventListener('change', function(e){
     encoding:"UTF-8",
     complete: function(res){
       uploadedRawData = res.data || [];
+      setUploadMsg('');
       buildStatusFilters(uploadedRawData);
       processRows();
     }
@@ -302,9 +343,15 @@ document.getElementById('selectNoneStatus').addEventListener('click', ()=>{
   processRows();
 });
 
+document.getElementById('updatedDateInput').addEventListener('change', processRows);
+
 function processRows(){
   const inchargeId = document.getElementById('inchargeId').value.trim();
   const inchargeName = document.getElementById('inchargeName').value.trim();
+
+  const updatedDateVal = document.getElementById('updatedDateInput').value;
+  const updatedDateParsed = parseAnyDate(updatedDateVal);
+  const updatedDateStr = updatedDateParsed ? fmtDate(updatedDateParsed) : '';
 
   const selected = getSelectedStatuses();
 
@@ -328,7 +375,7 @@ function processRows(){
     }
     return {
       'HUB NAME': r['Current Hub'] || '',
-      'UPDATED DATE': serialFmt(r['Updated At']),
+      'UPDATED DATE': updatedDateStr,
       'INCHARGE ID': inchargeId,
       'INCHARGE NAME': inchargeName,
       'CONSIGNMENT ID': r['Consignment Id'] || '',
@@ -349,6 +396,7 @@ function processRows(){
   renderTable();
   renderStats(filtered.length, uploadedRawData.length);
   document.getElementById('copyBtn').disabled = currentRows.length===0;
+  document.getElementById('uploadSheetBtn').disabled = currentRows.length===0;
 }
 
 function renderStats(matched, total){
@@ -420,6 +468,80 @@ document.getElementById('copyBtn').addEventListener('click', function(){
     setTimeout(()=>{msg.style.display='none';}, 3000);
   });
 });
+
+/* =========================================================
+   UPLOAD TO GOOGLE SHEET
+========================================================= */
+
+function setUploadMsg(text, type){
+  const el = document.getElementById('uploadMsg');
+  el.textContent = text;
+  el.className = 'upload-msg' + (type ? ' up-'+type : '');
+  el.style.display = text ? 'block' : 'none';
+}
+
+function groupRowsByHub(){
+  const groups = {};
+  currentRows.forEach(row=>{
+    const hub = row['HUB NAME'] || 'Unknown Hub';
+    if(!groups[hub]) groups[hub] = [];
+    groups[hub].push(HEADERS.map(h => row[h] || ''));
+  });
+  return Object.keys(groups).map(tabName => ({
+    tabName,
+    rows: groups[tabName]
+  }));
+}
+
+async function uploadToSheet(){
+
+  if(!SHEET_UPLOAD_URL || SHEET_UPLOAD_URL.includes('PASTE_YOUR')){
+    setUploadMsg('Apps Script URL এখনো বসানো হয়নি — return-hold-verification.html এর SHEET_UPLOAD_URL এ তোমার deployed Web App URL বসাও।', 'error');
+    return;
+  }
+
+  if(!currentRows.length){
+    setUploadMsg('আপলোড করার মতো কোনো row নেই — আগে CSV আপলোড করো।', 'error');
+    return;
+  }
+
+  const groups = groupRowsByHub();
+  const btn = document.getElementById('uploadSheetBtn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  setUploadMsg(`${groups.length}টা hub ট্যাবে পাঠানো হচ্ছে…`, 'info');
+
+  try{
+    const res = await fetch(SHEET_UPLOAD_URL, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ groups })
+    });
+
+    const data = await res.json();
+
+    if(!data.ok){
+      setUploadMsg('Upload ব্যর্থ: '+(data.error||'Unknown error'), 'error');
+      return;
+    }
+
+    let msg = `✓ আপডেট হয়েছে: ${data.updated.join(', ')}`;
+    if(data.failed && data.failed.length){
+      msg += ` — ব্যর্থ হয়েছে (আবার চেষ্টা করো): ${data.failed.join('; ')}`;
+    }
+
+    setUploadMsg(msg, (data.failed && data.failed.length) ? 'warn' : 'success');
+
+  }catch(err){
+    setUploadMsg('Upload ব্যর্থ: '+err.message, 'error');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+document.getElementById('uploadSheetBtn').addEventListener('click', uploadToSheet);
 </script>
 </body>
 </html>
