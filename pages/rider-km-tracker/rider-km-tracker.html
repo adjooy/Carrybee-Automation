@@ -344,7 +344,7 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportDaily('jpg')">JPG</button>
     </div>
     <div class="table-scroll" style="max-height:340px;">
-      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th><th>Total Pending</th></tr></thead><tbody id="dailyRows"></tbody></table>
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Total Pending</th></tr></thead><tbody id="dailyRows"></tbody></table>
     </div>
   </div>
 </div>
@@ -361,7 +361,7 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportWeekly('jpg')">JPG</button>
     </div>
     <div class="table-scroll" style="max-height:400px;">
-      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th></tr></thead><tbody id="weeklyRows"></tbody></table>
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="weeklyRows"></tbody></table>
     </div>
   </div>
 </div>
@@ -379,7 +379,7 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportMonthly('jpg')">JPG</button>
     </div>
     <div class="table-scroll" style="max-height:340px;">
-      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th></tr></thead><tbody id="monthlyRows"></tbody></table>
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="monthlyRows"></tbody></table>
     </div>
   </div>
 </div>
@@ -403,7 +403,7 @@
       <div class="odo"><div class="lbl">Pending</div><div class="val red num" id="rrPending">0.00</div></div>
     </div>
     <div class="table-scroll" style="max-height:320px;">
-      <table><thead><tr><th>Date</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th><th>Status</th></tr></thead><tbody id="riderReportRows"></tbody></table>
+      <table><thead><tr><th>Date</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Status</th></tr></thead><tbody id="riderReportRows"></tbody></table>
     </div>
   </div>
 </div>
@@ -493,7 +493,7 @@
       <div class="row3 row4-stats">
         <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Total</div><div class="val num" id="prevTotal">0.00</div></div>
         <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Pending</div><div class="val red num" id="prevPending">0.00</div></div>
-        <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Last Day Due</div><div class="val amber num" id="prevLastDue">0.00</div></div>
+        <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Total Pending</div><div class="val amber num" id="prevTotalPending">0.00</div></div>
         <div class="odo" style="background:var(--ink); border-radius:10px;"><div class="lbl">Status</div><div class="val amber" id="prevStatus">Unpaid</div></div>
       </div>
       <div class="btn-row" style="margin-top:16px;">
@@ -523,7 +523,7 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Date</th><th>Rider</th><th>KM</th><th>Rate</th><th>Total</th><th>Paid</th><th>Pending</th><th>Last Day Due</th><th>Total Pending</th><th>Status</th><th>Note</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Total Pending</th><th>Status</th><th>Note</th><th></th></tr></thead>
           <tbody id="entryRows"></tbody>
         </table>
       </div>
@@ -1179,10 +1179,11 @@ const Entries = (() => {
 
     const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
     const lastDue = riderId ? lastDayDueFor(cumulativeMap, riderId, date) : 0;
+    const totalPending = lastDue + pending;
 
     document.getElementById('prevTotal').textContent = money(total);
     document.getElementById('prevPending').textContent = money(pending);
-    document.getElementById('prevLastDue').textContent = money(lastDue);
+    document.getElementById('prevTotalPending').textContent = money(totalPending);
     document.getElementById('prevStatus').textContent = status;
   }
 
@@ -1289,19 +1290,17 @@ const Entries = (() => {
           && (!fStatus || status === fStatus);
       });
 
-    renderRows('entryRows', rows, 12, e => {
+    renderRows('entryRows', rows, 10, e => {
       const status = entryStatus(e);
       const lastDayDue = lastDayDueFor(pendingCumulative, e.riderId, e.date);
-      const riderTotalPending = (pendingCumulative[e.riderId] && pendingCumulative[e.riderId][e.date]) || 0;
+      const riderTotalPending = lastDayDue + Number(e.pending || 0);
       return `<tr>
         <td>${e.date}</td>
         <td>${esc(rMap[e.riderId] || 'Unknown')}</td>
         <td class="num">${money(e.km)}</td>
-        <td class="num">${money(e.rate)}</td>
         <td class="num">${money(e.total)}</td>
         <td class="num">${money(e.paid)}</td>
         <td class="num">${money(e.pending)}</td>
-        <td class="num">${money(lastDayDue)}</td>
         <td class="num">${money(riderTotalPending)}</td>
         <td>${statusBadge(status)}</td>
         <td>${esc(e.note||'')}</td>
@@ -1358,40 +1357,36 @@ const Reports = (() => {
     return keepAllRiders ? rows : rows.filter(r => r.km || r.total || r.paid || r.pending);
   }
 
-  function tableHtml(rows, lastDueMap){
+  function tableHtml(rows){
+    if(!rows.length) return `<tr class="empty-row"><td colspan="5">No data.</td></tr>`;
+    return rows.map(r => `<tr>
+      <td>${esc(r.name)}</td><td class="num">${money(r.km)}</td><td class="num">${money(r.total)}</td>
+      <td class="num">${money(r.paid)}</td><td class="num">${money(r.pending)}</td>
+    </tr>`).join('');
+  }
+
+  function dailyTableHtml(rows, totalPendingMap){
     if(!rows.length) return `<tr class="empty-row"><td colspan="6">No data.</td></tr>`;
     return rows.map(r => `<tr>
       <td>${esc(r.name)}</td><td class="num">${money(r.km)}</td><td class="num">${money(r.total)}</td>
       <td class="num">${money(r.paid)}</td><td class="num">${money(r.pending)}</td>
-      <td class="num">${money((lastDueMap && lastDueMap[r.id]) || 0)}</td>
-    </tr>`).join('');
-  }
-
-  function dailyTableHtml(rows, lastDueMap, totalPendingMap){
-    if(!rows.length) return `<tr class="empty-row"><td colspan="7">No data.</td></tr>`;
-    return rows.map(r => `<tr>
-      <td>${esc(r.name)}</td><td class="num">${money(r.km)}</td><td class="num">${money(r.total)}</td>
-      <td class="num">${money(r.paid)}</td><td class="num">${money(r.pending)}</td>
-      <td class="num">${money((lastDueMap && lastDueMap[r.id]) || 0)}</td>
       <td class="num">${money((totalPendingMap && totalPendingMap[r.id]) || 0)}</td>
     </tr>`).join('');
   }
 
   function render(){
-    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
-
     const weekStart = startOfWeek(new Date());
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
     const weekly = DataStore.state.entries.filter(e => { const d = new Date(e.date); return d >= weekStart && d <= weekEnd; });
-    document.getElementById('weeklyRows').innerHTML = tableHtml(summarize(weekly), buildLastDueMap(cumulativeMap, isoDateStr(weekStart)));
+    document.getElementById('weeklyRows').innerHTML = tableHtml(summarize(weekly));
 
     const day = document.getElementById('reportDay').value || todayISO();
     const daily = DataStore.state.entries.filter(e => e.date === day);
-    document.getElementById('dailyRows').innerHTML = dailyTableHtml(summarize(daily, daily.length > 0), buildLastDueMap(cumulativeMap, day), riderPendingAsOf(day));
+    document.getElementById('dailyRows').innerHTML = dailyTableHtml(summarize(daily, daily.length > 0), riderPendingAsOf(day));
 
     const month = document.getElementById('reportMonth').value;
     const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
-    document.getElementById('monthlyRows').innerHTML = tableHtml(summarize(monthly), buildLastDueMap(cumulativeMap, month ? month + '-01' : ''));
+    document.getElementById('monthlyRows').innerHTML = tableHtml(summarize(monthly));
   }
 
   function populateRiderSelect(){
@@ -1414,14 +1409,12 @@ const Reports = (() => {
     document.getElementById('rrPaid').textContent = money(sum('paid'));
     document.getElementById('rrPending').textContent = money(sum('pending'));
 
-    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
-    renderRows('riderReportRows', entries, 7, e => `<tr>
+    renderRows('riderReportRows', entries, 6, e => `<tr>
       <td>${e.date}</td>
       <td class="num">${money(e.km)}</td>
       <td class="num">${money(e.total)}</td>
       <td class="num">${money(e.paid)}</td>
       <td class="num">${money(e.pending)}</td>
-      <td class="num">${money(lastDayDueFor(cumulativeMap, riderId, e.date))}</td>
       <td>${statusBadge(entryStatus(e))}</td>
     </tr>`, 'No entries for this rider yet.');
   }
@@ -1437,19 +1430,17 @@ const Reports = (() => {
     const daily = DataStore.state.entries.filter(e => e.date === day);
     if(!daily.length) return alert('No entries found for this date.');
     const rows = summarize(daily, true);
-    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
-    const lastDueMap = buildLastDueMap(cumulativeMap, day);
     const totalPendingMap = riderPendingAsOf(day);
     const subtitle = `Date: ${formatDateLong(new Date(day + 'T00:00:00'))}`;
 
     if(format === 'csv'){
       downloadFile(`daily-fuel-cost-report-${day}.csv`, toCsv([
-        ['Rider','KM','Total','Paid','Pending','Last Day Due','Total Pending'],
-        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, lastDueMap[r.id]||0, totalPendingMap[r.id]||0])
+        ['Rider','KM','Total','Paid','Pending','Total Pending'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, totalPendingMap[r.id]||0])
       ]), 'text/csv;charset=utf-8;');
     } else {
-      await exportVisual('Daily Fuel Cost Report', subtitle, ['Rider','KM','Total','Paid','Pending','Last Day Due','Total Pending'],
-        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(lastDueMap[r.id]||0), money(totalPendingMap[r.id]||0)]),
+      await exportVisual('Daily Fuel Cost Report', subtitle, ['Rider','KM','Total','Paid','Pending','Total Pending'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(totalPendingMap[r.id]||0)]),
         `daily-fuel-cost-report-${day}`, format);
     }
     DataStore.log(`Generated daily fuel cost report — ${day} (${format.toUpperCase()})`);
@@ -1462,17 +1453,16 @@ const Reports = (() => {
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
     const weekly = DataStore.state.entries.filter(e => { const d = new Date(e.date); return d >= weekStart && d <= weekEnd; });
     const rows = summarize(weekly);
-    const lastDueMap = buildLastDueMap(riderPendingCumulativeByDate(DataStore.state.entries), isoDateStr(weekStart));
     const subtitle = `Week of ${formatDateLong(weekStart)} – ${formatDateLong(weekEnd)}`;
 
     if(format === 'csv'){
       downloadFile(`weekly-report-${todayISO()}.csv`, toCsv([
-        ['Rider','KM','Total','Paid','Pending','Last Day Due'],
-        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, lastDueMap[r.id]||0])
+        ['Rider','KM','Total','Paid','Pending'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending])
       ]), 'text/csv;charset=utf-8;');
     } else {
-      await exportVisual('Weekly Report', subtitle, ['Rider','KM','Total','Paid','Pending','Last Day Due'],
-        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(lastDueMap[r.id]||0)]),
+      await exportVisual('Weekly Report', subtitle, ['Rider','KM','Total','Paid','Pending'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending)]),
         `weekly-report-${todayISO()}`, format);
     }
     DataStore.log(`Generated weekly report (${format.toUpperCase()})`);
@@ -1484,17 +1474,16 @@ const Reports = (() => {
     const month = document.getElementById('reportMonth').value;
     const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
     const rows = summarize(monthly);
-    const lastDueMap = buildLastDueMap(riderPendingCumulativeByDate(DataStore.state.entries), month ? month + '-01' : '');
     const subtitle = month ? `Month of ${month}` : 'All time';
 
     if(format === 'csv'){
       downloadFile(`monthly-report-${month || 'all'}.csv`, toCsv([
-        ['Rider','KM','Total','Paid','Pending','Last Day Due'],
-        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, lastDueMap[r.id]||0])
+        ['Rider','KM','Total','Paid','Pending'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending])
       ]), 'text/csv;charset=utf-8;');
     } else {
-      await exportVisual('Monthly Summary', subtitle, ['Rider','KM','Total','Paid','Pending','Last Day Due'],
-        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(lastDueMap[r.id]||0)]),
+      await exportVisual('Monthly Summary', subtitle, ['Rider','KM','Total','Paid','Pending'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending)]),
         `monthly-report-${month || 'all'}`, format);
     }
     DataStore.log(`Generated monthly report${month ? ' — ' + month : ''} (${format.toUpperCase()})`);
@@ -1508,12 +1497,11 @@ const Reports = (() => {
     const entries = DataStore.state.entries.filter(e => e.riderId === riderId).sort((a,b) => a.date.localeCompare(b.date));
     if(!entries.length) return alert('This rider has no entries yet.');
     const slug = name.trim().toLowerCase().replace(/\s+/g,'-') || 'rider';
-    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
 
     if(format === 'csv'){
       const csv = toCsv([
-        ['Date','KM','Rate','Total','Paid','Pending','Last Day Due','Status','Note'],
-        ...entries.map(e => [e.date, e.km, e.rate, e.total, e.paid, e.pending, lastDayDueFor(cumulativeMap, riderId, e.date), entryStatus(e), e.note||''])
+        ['Date','KM','Total','Paid','Pending','Status','Note'],
+        ...entries.map(e => [e.date, e.km, e.total, e.paid, e.pending, entryStatus(e), e.note||''])
       ]);
       downloadFile(`rider-report-${slug}-${todayISO()}.csv`, csv, 'text/csv;charset=utf-8;');
     } else {
@@ -1525,8 +1513,8 @@ const Reports = (() => {
         { label:'Pending', value: money(sum('pending')) }
       ];
       await exportVisual(`Rider Report — ${name}`, `Generated ${formatDateLong(new Date())}`,
-        ['Date','KM','Rate','Total','Paid','Pending','Last Day Due','Status','Note'],
-        entries.map(e => [e.date, money(e.km), money(e.rate), money(e.total), money(e.paid), money(e.pending), money(lastDayDueFor(cumulativeMap, riderId, e.date)), entryStatus(e), e.note||'']),
+        ['Date','KM','Total','Paid','Pending','Status','Note'],
+        entries.map(e => [e.date, money(e.km), money(e.total), money(e.paid), money(e.pending), entryStatus(e), e.note||'']),
         `rider-report-${slug}-${todayISO()}`, format, statChips);
     }
     DataStore.log(`Generated rider report — ${name} (${format.toUpperCase()})`);
