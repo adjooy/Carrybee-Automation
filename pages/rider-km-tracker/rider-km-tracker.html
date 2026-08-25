@@ -129,7 +129,7 @@
   .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
 
   /* ---------- tables ---------- */
-  .table-scroll{overflow:auto; max-height:380px; border:1px solid var(--steel); border-radius:11px; -webkit-overflow-scrolling:touch;}
+  .table-scroll{overflow:auto; max-height:min(65vh, 640px); border:1px solid var(--steel); border-radius:11px; -webkit-overflow-scrolling:touch;}
   table{width:100%; min-width:560px; border-collapse:collapse; font-size:13.5px;}
   th{
     position:sticky; top:0; background:var(--paper); text-align:left; font-size:10.5px;
@@ -291,7 +291,7 @@
 </div>
 
 <div id="riderModal" class="overlay hidden">
-  <div class="overlay-card" style="max-width:440px;">
+  <div class="overlay-card" style="max-width:640px;">
     <div class="card-head" style="margin-bottom:16px;">
       <h2>Riders</h2>
       <button class="modal-close" onclick="Menu.close('riderModal')">✕</button>
@@ -301,7 +301,7 @@
       <input id="riderName" type="text" placeholder="Rider name" onkeydown="if(event.key==='Enter')Riders.add()" />
     </div>
     <button class="btn btn-block" onclick="Riders.add()">Add Rider</button>
-    <div class="table-scroll" style="margin-top:14px; max-height:280px;">
+    <div class="table-scroll" style="margin-top:14px; max-height:min(60vh, 480px);">
       <table><thead><tr><th>Name</th><th>Pending</th><th></th></tr></thead><tbody id="riderRows"></tbody></table>
     </div>
   </div>
@@ -332,7 +332,7 @@
 </div>
 
 <div id="dailyModal" class="overlay hidden">
-  <div class="overlay-card" style="max-width:520px;">
+  <div class="overlay-card" style="max-width:600px;">
     <div class="card-head" style="margin-bottom:14px;">
       <h2>Daily Fuel Cost Report</h2>
       <button class="modal-close" onclick="Menu.close('dailyModal')">✕</button>
@@ -343,14 +343,14 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportDaily('pdf')">PDF</button>
       <button class="btn-sm btn-amber" onclick="Reports.exportDaily('jpg')">JPG</button>
     </div>
-    <div class="table-scroll" style="max-height:340px;">
+    <div class="table-scroll" style="max-height:min(60vh, 460px);">
       <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Total Pending</th></tr></thead><tbody id="dailyRows"></tbody></table>
     </div>
   </div>
 </div>
 
 <div id="weeklyModal" class="overlay hidden">
-  <div class="overlay-card" style="max-width:520px;">
+  <div class="overlay-card" style="max-width:600px;">
     <div class="card-head" style="margin-bottom:14px;">
       <h2>This Week</h2>
       <button class="modal-close" onclick="Menu.close('weeklyModal')">✕</button>
@@ -360,14 +360,14 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportWeekly('pdf')">PDF</button>
       <button class="btn-sm btn-amber" onclick="Reports.exportWeekly('jpg')">JPG</button>
     </div>
-    <div class="table-scroll" style="max-height:400px;">
+    <div class="table-scroll" style="max-height:min(65vh, 500px);">
       <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="weeklyRows"></tbody></table>
     </div>
   </div>
 </div>
 
 <div id="monthlyModal" class="overlay hidden">
-  <div class="overlay-card" style="max-width:520px;">
+  <div class="overlay-card" style="max-width:600px;">
     <div class="card-head" style="margin-bottom:14px;">
       <h2>Monthly Summary</h2>
       <button class="modal-close" onclick="Menu.close('monthlyModal')">✕</button>
@@ -378,20 +378,29 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportMonthly('pdf')">PDF</button>
       <button class="btn-sm btn-amber" onclick="Reports.exportMonthly('jpg')">JPG</button>
     </div>
-    <div class="table-scroll" style="max-height:340px;">
+    <div class="table-scroll" style="max-height:min(60vh, 460px);">
       <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="monthlyRows"></tbody></table>
     </div>
   </div>
 </div>
 
 <div id="riderReportModal" class="overlay hidden">
-  <div class="overlay-card" style="max-width:580px;">
+  <div class="overlay-card" style="max-width:680px;">
     <div class="card-head" style="margin-bottom:14px;">
       <h2>Rider Report</h2>
       <button class="modal-close" onclick="Menu.close('riderReportModal')">✕</button>
     </div>
     <div class="field"><label for="riderReportSelect">Rider</label><select id="riderReportSelect" onchange="Reports.renderRiderReport()"></select></div>
-    <div class="btn-row" style="margin:12px 0 14px;">
+    <div class="row2" style="margin-top:10px;">
+      <div class="field"><label for="rrFrom">From</label><input id="rrFrom" type="date" onchange="Reports.renderRiderReport()" /></div>
+      <div class="field"><label for="rrTo">To</label><input id="rrTo" type="date" onchange="Reports.renderRiderReport()" /></div>
+    </div>
+    <div class="btn-row" style="margin:4px 0 14px;">
+      <button class="btn-sm btn-outline" onclick="Reports.setRiderReportRange('week')">This Week</button>
+      <button class="btn-sm btn-outline" onclick="Reports.setRiderReportRange('month')">This Month</button>
+      <button class="btn-sm btn-outline" onclick="Reports.setRiderReportRange('all')">Lifetime</button>
+    </div>
+    <div class="btn-row" style="margin:0 0 14px;">
       <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('csv')">CSV</button>
       <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('pdf')">PDF</button>
       <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('jpg')">JPG</button>
@@ -402,7 +411,7 @@
       <div class="odo"><div class="lbl">Paid</div><div class="val green num" id="rrPaid">0.00</div></div>
       <div class="odo"><div class="lbl">Pending</div><div class="val red num" id="rrPending">0.00</div></div>
     </div>
-    <div class="table-scroll" style="max-height:320px;">
+    <div class="table-scroll" style="max-height:min(55vh, 420px);">
       <table><thead><tr><th>Date</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Status</th></tr></thead><tbody id="riderReportRows"></tbody></table>
     </div>
   </div>
@@ -1130,7 +1139,11 @@ const Riders = (() => {
     const riders = DataStore.state.riders;
     const options = riders.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
     document.getElementById('entryRider').innerHTML = options || '<option value="">No riders yet</option>';
-    document.getElementById('fRider').innerHTML = '<option value="">All Riders</option>' + options;
+
+    const fRider = document.getElementById('fRider');
+    const prevSelected = fRider.value;
+    fRider.innerHTML = '<option value="">All Riders</option>' + options;
+    if(prevSelected && riders.some(r => r.id === prevSelected)) fRider.value = prevSelected;
   }
 
   function render(){
@@ -1397,11 +1410,40 @@ const Reports = (() => {
     if(current && DataStore.state.riders.some(r => r.id === current)) sel.value = current;
   }
 
-  function renderRiderReport(){
+  function riderReportEntries(){
     const riderId = document.getElementById('riderReportSelect').value;
-    const entries = DataStore.state.entries
+    const from = document.getElementById('rrFrom').value;
+    const to = document.getElementById('rrTo').value;
+    return DataStore.state.entries
       .filter(e => e.riderId === riderId)
+      .filter(e => !from || e.date >= from)
+      .filter(e => !to || e.date <= to)
       .sort((a,b) => b.date.localeCompare(a.date));
+  }
+
+  function setRiderReportRange(preset){
+    const fromEl = document.getElementById('rrFrom');
+    const toEl = document.getElementById('rrTo');
+    if(preset === 'all'){
+      fromEl.value = '';
+      toEl.value = '';
+    } else if(preset === 'week'){
+      const start = startOfWeek(new Date());
+      const end = new Date(start); end.setDate(start.getDate()+6);
+      fromEl.value = isoDateStr(start);
+      toEl.value = isoDateStr(end);
+    } else if(preset === 'month'){
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth()+1, 0);
+      fromEl.value = isoDateStr(start);
+      toEl.value = isoDateStr(end);
+    }
+    renderRiderReport();
+  }
+
+  function renderRiderReport(){
+    const entries = riderReportEntries();
 
     const sum = key => entries.reduce((s,e) => s + Number(e[key]||0), 0);
     document.getElementById('rrKm').textContent = money(sum('km'));
@@ -1416,11 +1458,13 @@ const Reports = (() => {
       <td class="num">${money(e.paid)}</td>
       <td class="num">${money(e.pending)}</td>
       <td>${statusBadge(entryStatus(e))}</td>
-    </tr>`, 'No entries for this rider yet.');
+    </tr>`, 'No entries in this range.');
   }
 
   function openRiderReport(){
     populateRiderSelect();
+    document.getElementById('rrFrom').value = '';
+    document.getElementById('rrTo').value = '';
     renderRiderReport();
     Menu.open('riderReportModal');
   }
@@ -1494,16 +1538,20 @@ const Reports = (() => {
   async function exportRiderReport(format){
     const riderId = document.getElementById('riderReportSelect').value;
     const name = riderMap()[riderId] || 'Unknown';
-    const entries = DataStore.state.entries.filter(e => e.riderId === riderId).sort((a,b) => a.date.localeCompare(b.date));
-    if(!entries.length) return alert('This rider has no entries yet.');
+    const entries = riderReportEntries().sort((a,b) => a.date.localeCompare(b.date));
+    if(!entries.length) return alert('No entries in this range for this rider.');
     const slug = name.trim().toLowerCase().replace(/\s+/g,'-') || 'rider';
+    const from = document.getElementById('rrFrom').value;
+    const to = document.getElementById('rrTo').value;
+    const rangeLabel = (from || to) ? `${from || 'start'}_to_${to || 'now'}` : 'lifetime';
+    const rangeSubtitle = (from || to) ? `${from || '…'} – ${to || '…'}` : 'Lifetime';
 
     if(format === 'csv'){
       const csv = toCsv([
         ['Date','KM','Total','Paid','Pending','Status','Note'],
         ...entries.map(e => [e.date, e.km, e.total, e.paid, e.pending, entryStatus(e), e.note||''])
       ]);
-      downloadFile(`rider-report-${slug}-${todayISO()}.csv`, csv, 'text/csv;charset=utf-8;');
+      downloadFile(`rider-report-${slug}-${rangeLabel}.csv`, csv, 'text/csv;charset=utf-8;');
     } else {
       const sum = key => entries.reduce((s,e) => s + Number(e[key]||0), 0);
       const statChips = [
@@ -1512,17 +1560,17 @@ const Reports = (() => {
         { label:'Paid', value: money(sum('paid')) },
         { label:'Pending', value: money(sum('pending')) }
       ];
-      await exportVisual(`Rider Report — ${name}`, `Generated ${formatDateLong(new Date())}`,
+      await exportVisual(`Rider Report — ${name}`, `${rangeSubtitle} · Generated ${formatDateLong(new Date())}`,
         ['Date','KM','Total','Paid','Pending','Status','Note'],
         entries.map(e => [e.date, money(e.km), money(e.total), money(e.paid), money(e.pending), entryStatus(e), e.note||'']),
-        `rider-report-${slug}-${todayISO()}`, format, statChips);
+        `rider-report-${slug}-${rangeLabel}`, format, statChips);
     }
     DataStore.log(`Generated rider report — ${name} (${format.toUpperCase()})`);
     await DataStore.persist();
     auditRows();
   }
 
-  return { render, populateRiderSelect, renderRiderReport, openRiderReport, exportDaily, exportWeekly, exportMonthly, exportRiderReport };
+  return { render, populateRiderSelect, renderRiderReport, setRiderReportRange, openRiderReport, exportDaily, exportWeekly, exportMonthly, exportRiderReport };
 })();
 
 /* ============================================================
