@@ -412,7 +412,7 @@
       <div class="odo"><div class="lbl">Pending</div><div class="val red num" id="rrPending">0.00</div></div>
     </div>
     <div class="table-scroll" style="max-height:min(55vh, 420px);">
-      <table><thead><tr><th>Date</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Status</th></tr></thead><tbody id="riderReportRows"></tbody></table>
+      <table><thead><tr><th>Date</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Balance</th><th>Status</th></tr></thead><tbody id="riderReportRows"></tbody></table>
     </div>
   </div>
 </div>
@@ -892,63 +892,56 @@ function riderPendingMap(){
   return map;
 }
 
-/* Running balance: for each rider, pending summed only through a given date —
-   so a later entry never changes what an earlier date's row already showed.
-   Returns { riderId: { 'YYYY-MM-DD': cumulativePendingThroughThatDate, ... } } */
-function riderPendingCumulativeByDate(entries){
-  const byRiderDate = {};
-  entries.forEach(e => {
-    if(!byRiderDate[e.riderId]) byRiderDate[e.riderId] = {};
-    byRiderDate[e.riderId][e.date] = (byRiderDate[e.riderId][e.date] || 0) + Number(e.pending || 0);
-  });
-  const cumulative = {};
-  Object.keys(byRiderDate).forEach(riderId => {
-    const dates = Object.keys(byRiderDate[riderId]).sort();
-    let running = 0;
-    cumulative[riderId] = {};
-    dates.forEach(d => {
-      running += byRiderDate[riderId][d];
-      cumulative[riderId][d] = running;
-    });
-  });
-  return cumulative;
-}
-
-/* Convenience: cumulative pending for every rider as of one specific date. */
-function riderPendingAsOf(day){
-  const cumulative = riderPendingCumulativeByDate(DataStore.state.entries);
-  const map = {};
-  Object.keys(cumulative).forEach(riderId => {
-    const dates = Object.keys(cumulative[riderId]).sort();
-    let result = 0;
-    for(const d of dates){
-      if(d <= day) result = cumulative[riderId][d];
-      else break;
-    }
-    map[riderId] = result;
-  });
-  return map;
-}
-
-/* "Last Day Due": all of this rider's pending EXCLUDING their own current date —
-   i.e. the balance already carried forward from before this date. Works for any
-   cutoff date, whether or not an entry exists exactly on that date (e.g. a brand
-   new date being entered, or the first day of a week/month). */
-function lastDayDueFor(cumulativeMap, riderId, cutoffDate){
-  const riderDates = cumulativeMap[riderId];
-  if(!riderDates) return 0;
-  const dates = Object.keys(riderDates).sort();
-  let result = 0;
-  for(const d of dates){
-    if(d < cutoffDate) result = riderDates[d];
-    else break;
+/* TRUE RUNNING BALANCE.
+   Every entry — even several on the same date — is chained in real
+   chronological order: first by date, then (for same-date entries) by
+   the order they were actually created (using createdAt, falling back
+   to the timestamp embedded in the entry id for older entries that
+   predate the createdAt field). Editing an entry never re-orders it;
+   only its own date/pending values change.
+   Returns { sorted: {riderId: [entries in true order]}, balance: {entryId: runningTotalAfterThisEntry} } */
+function entryTimestamp(e){
+  if(e.createdAt){
+    const t = Date.parse(e.createdAt);
+    if(!Number.isNaN(t)) return t;
   }
-  return result;
+  const m = String(e.id || '').match(/_(\d+)_/);
+  return m ? Number(m[1]) : 0;
 }
 
-function buildLastDueMap(cumulativeMap, cutoffDate){
+function riderRunningTotals(entries){
+  const byRider = {};
+  entries.forEach(e => { (byRider[e.riderId] = byRider[e.riderId] || []).push(e); });
+
+  const sorted = {};
+  const balance = {};
+
+  Object.keys(byRider).forEach(riderId => {
+    const list = byRider[riderId].slice().sort((a,b) => {
+      if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return entryTimestamp(a) - entryTimestamp(b);
+    });
+    let running = 0;
+    list.forEach(e => {
+      running += Number(e.pending || 0);
+      balance[e.id] = running;
+    });
+    sorted[riderId] = list;
+  });
+
+  return { sorted, balance };
+}
+
+/* Convenience: running balance for every rider as of the end of one
+   specific date (i.e. after all their entries dated on/before `day`,
+   processed in true chronological order). */
+function riderPendingAsOf(day){
+  const { sorted, balance } = riderRunningTotals(DataStore.state.entries);
   const map = {};
-  DataStore.state.riders.forEach(r => { map[r.id] = lastDayDueFor(cumulativeMap, r.id, cutoffDate); });
+  DataStore.state.riders.forEach(r => {
+    const list = (sorted[r.id] || []).filter(e => e.date <= day);
+    map[r.id] = list.length ? balance[list[list.length - 1].id] : 0;
+  });
   return map;
 }
 
@@ -1190,9 +1183,9 @@ const Entries = (() => {
     if(total > 0 && paid >= total) status = 'Paid';
     else if(paid > 0) status = 'Partial';
 
-    const cumulativeMap = riderPendingCumulativeByDate(DataStore.state.entries);
-    const lastDue = riderId ? lastDayDueFor(cumulativeMap, riderId, date) : 0;
-    const totalPending = lastDue + pending;
+    const asOfMap = riderId ? riderPendingAsOf(date) : {};
+    const baseline = asOfMap[riderId] || 0;
+    const totalPending = baseline + pending;
 
     document.getElementById('prevTotal').textContent = money(total);
     document.getElementById('prevPending').textContent = money(pending);
@@ -1289,10 +1282,16 @@ const Entries = (() => {
     const fMonth = document.getElementById('fMonth').value;
     const fStatus = document.getElementById('fStatus').value;
 
-    const pendingCumulative = riderPendingCumulativeByDate(DataStore.state.entries);
+    const { balance } = riderRunningTotals(DataStore.state.entries);
 
     const rows = [...DataStore.state.entries]
-      .sort((a,b) => b.date.localeCompare(a.date))
+      .sort((a,b) => {
+        if(a.date !== b.date) return b.date.localeCompare(a.date); // newest date first
+        const aPaymentOnly = Number(a.km || 0) === 0;
+        const bPaymentOnly = Number(b.km || 0) === 0;
+        if(aPaymentOnly !== bPaymentOnly) return aPaymentOnly ? -1 : 1; // payment-only entries float to the top
+        return entryTimestamp(b) - entryTimestamp(a); // most recently added first within the same group
+      })
       .filter(e => {
         const name = (rMap[e.riderId]||'').toLowerCase();
         const note = (e.note||'').toLowerCase();
@@ -1305,8 +1304,7 @@ const Entries = (() => {
 
     renderRows('entryRows', rows, 10, e => {
       const status = entryStatus(e);
-      const lastDayDue = lastDayDueFor(pendingCumulative, e.riderId, e.date);
-      const riderTotalPending = lastDayDue + Number(e.pending || 0);
+      const riderTotalPending = balance[e.id] ?? 0;
       return `<tr>
         <td>${e.date}</td>
         <td>${esc(rMap[e.riderId] || 'Unknown')}</td>
@@ -1444,6 +1442,7 @@ const Reports = (() => {
 
   function renderRiderReport(){
     const entries = riderReportEntries();
+    const { balance } = riderRunningTotals(DataStore.state.entries);
 
     const sum = key => entries.reduce((s,e) => s + Number(e[key]||0), 0);
     document.getElementById('rrKm').textContent = money(sum('km'));
@@ -1451,12 +1450,13 @@ const Reports = (() => {
     document.getElementById('rrPaid').textContent = money(sum('paid'));
     document.getElementById('rrPending').textContent = money(sum('pending'));
 
-    renderRows('riderReportRows', entries, 6, e => `<tr>
+    renderRows('riderReportRows', entries, 7, e => `<tr>
       <td>${e.date}</td>
       <td class="num">${money(e.km)}</td>
       <td class="num">${money(e.total)}</td>
       <td class="num">${money(e.paid)}</td>
       <td class="num">${money(e.pending)}</td>
+      <td class="num">${money(balance[e.id] ?? 0)}</td>
       <td>${statusBadge(entryStatus(e))}</td>
     </tr>`, 'No entries in this range.');
   }
@@ -1540,6 +1540,7 @@ const Reports = (() => {
     const name = riderMap()[riderId] || 'Unknown';
     const entries = riderReportEntries().sort((a,b) => a.date.localeCompare(b.date));
     if(!entries.length) return alert('No entries in this range for this rider.');
+    const { balance } = riderRunningTotals(DataStore.state.entries);
     const slug = name.trim().toLowerCase().replace(/\s+/g,'-') || 'rider';
     const from = document.getElementById('rrFrom').value;
     const to = document.getElementById('rrTo').value;
@@ -1548,8 +1549,8 @@ const Reports = (() => {
 
     if(format === 'csv'){
       const csv = toCsv([
-        ['Date','KM','Total','Paid','Pending','Status','Note'],
-        ...entries.map(e => [e.date, e.km, e.total, e.paid, e.pending, entryStatus(e), e.note||''])
+        ['Date','KM','Total','Paid','Pending','Balance','Status','Note'],
+        ...entries.map(e => [e.date, e.km, e.total, e.paid, e.pending, balance[e.id] ?? 0, entryStatus(e), e.note||''])
       ]);
       downloadFile(`rider-report-${slug}-${rangeLabel}.csv`, csv, 'text/csv;charset=utf-8;');
     } else {
@@ -1561,8 +1562,8 @@ const Reports = (() => {
         { label:'Pending', value: money(sum('pending')) }
       ];
       await exportVisual(`Rider Report — ${name}`, `${rangeSubtitle} · Generated ${formatDateLong(new Date())}`,
-        ['Date','KM','Total','Paid','Pending','Status','Note'],
-        entries.map(e => [e.date, money(e.km), money(e.total), money(e.paid), money(e.pending), entryStatus(e), e.note||'']),
+        ['Date','KM','Total','Paid','Pending','Balance','Status','Note'],
+        entries.map(e => [e.date, money(e.km), money(e.total), money(e.paid), money(e.pending), money(balance[e.id] ?? 0), entryStatus(e), e.note||'']),
         `rider-report-${slug}-${rangeLabel}`, format, statChips);
     }
     DataStore.log(`Generated rider report — ${name} (${format.toUpperCase()})`);
