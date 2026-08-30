@@ -337,7 +337,10 @@
       <h2>Daily Fuel Cost Report</h2>
       <button class="modal-close" onclick="Menu.close('dailyModal')">✕</button>
     </div>
-    <div class="field"><label for="reportDay">Date</label><input id="reportDay" type="date" onchange="Reports.render()" /></div>
+    <div class="row2">
+      <div class="field"><label for="reportDay">Date</label><input id="reportDay" type="date" onchange="Reports.render()" /></div>
+      <div class="field"><label for="dailyRiderSelect">Rider</label><select id="dailyRiderSelect" onchange="Reports.render()"><option value="">All Riders</option></select></div>
+    </div>
     <div class="btn-row" style="margin-bottom:14px;">
       <button class="btn-sm btn-amber" onclick="Reports.exportDaily('csv')">CSV</button>
       <button class="btn-sm btn-amber" onclick="Reports.exportDaily('pdf')">PDF</button>
@@ -1118,11 +1121,14 @@ const Riders = (() => {
   function remove(riderId){
     PinSystem.require(async () => {
       const rider = DataStore.state.riders.find(r => r.id === riderId);
-      if(DataStore.state.entries.some(e => e.riderId === riderId))
-        return alert('This rider has entries — delete those first.');
-      if(!confirm('Delete this rider?')) return;
+      const entryCount = DataStore.state.entries.filter(e => e.riderId === riderId).length;
+      const warning = entryCount
+        ? `Delete "${rider ? rider.name : 'this rider'}" AND all ${entryCount} of their entries? This cannot be undone.`
+        : `Delete "${rider ? rider.name : 'this rider'}"?`;
+      if(!confirm(warning)) return;
       DataStore.state.riders = DataStore.state.riders.filter(r => r.id !== riderId);
-      DataStore.log('Deleted rider: ' + (rider ? rider.name : riderId));
+      DataStore.state.entries = DataStore.state.entries.filter(e => e.riderId !== riderId);
+      DataStore.log(`Deleted rider: ${rider ? rider.name : riderId}${entryCount ? ` (with ${entryCount} entries)` : ''}`);
       await DataStore.persist();
       App.renderAll();
     }, 'Enter PIN to delete rider.');
@@ -1386,14 +1392,19 @@ const Reports = (() => {
   }
 
   function render(){
+    populateRiderSelect();
+
     const weekStart = startOfWeek(new Date());
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
     const weekly = DataStore.state.entries.filter(e => { const d = new Date(e.date); return d >= weekStart && d <= weekEnd; });
     document.getElementById('weeklyRows').innerHTML = tableHtml(summarize(weekly));
 
     const day = document.getElementById('reportDay').value || todayISO();
-    const daily = DataStore.state.entries.filter(e => e.date === day);
-    document.getElementById('dailyRows').innerHTML = dailyTableHtml(summarize(daily, daily.length > 0), riderPendingAsOf(day));
+    const dailyRiderId = document.getElementById('dailyRiderSelect').value;
+    const daily = DataStore.state.entries
+      .filter(e => e.date === day)
+      .filter(e => !dailyRiderId || e.riderId === dailyRiderId);
+    document.getElementById('dailyRows').innerHTML = dailyTableHtml(summarize(daily, dailyRiderId ? true : daily.length > 0), riderPendingAsOf(day));
 
     const month = document.getElementById('reportMonth').value;
     const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
@@ -1406,6 +1417,12 @@ const Reports = (() => {
     sel.innerHTML = DataStore.state.riders.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')
       || '<option value="">No riders yet</option>';
     if(current && DataStore.state.riders.some(r => r.id === current)) sel.value = current;
+
+    const dailySel = document.getElementById('dailyRiderSelect');
+    const dailyCurrent = dailySel.value;
+    dailySel.innerHTML = '<option value="">All Riders</option>' +
+      DataStore.state.riders.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    if(dailyCurrent && DataStore.state.riders.some(r => r.id === dailyCurrent)) dailySel.value = dailyCurrent;
   }
 
   function riderReportEntries(){
@@ -1471,21 +1488,26 @@ const Reports = (() => {
 
   async function exportDaily(format){
     const day = document.getElementById('reportDay').value || todayISO();
-    const daily = DataStore.state.entries.filter(e => e.date === day);
-    if(!daily.length) return alert('No entries found for this date.');
-    const rows = summarize(daily, true);
+    const dailyRiderId = document.getElementById('dailyRiderSelect').value;
+    const daily = DataStore.state.entries
+      .filter(e => e.date === day)
+      .filter(e => !dailyRiderId || e.riderId === dailyRiderId);
+    if(!daily.length) return alert('No entries found for this date' + (dailyRiderId ? ' for this rider.' : '.'));
+    let rows = summarize(daily, true);
+    if(dailyRiderId) rows = rows.filter(r => r.id === dailyRiderId);
     const totalPendingMap = riderPendingAsOf(day);
-    const subtitle = `Date: ${formatDateLong(new Date(day + 'T00:00:00'))}`;
+    const riderSuffix = dailyRiderId ? '-' + (riderMap()[dailyRiderId]||'rider').trim().toLowerCase().replace(/\s+/g,'-') : '';
+    const subtitle = `Date: ${formatDateLong(new Date(day + 'T00:00:00'))}` + (dailyRiderId ? ` · ${riderMap()[dailyRiderId]||''}` : '');
 
     if(format === 'csv'){
-      downloadFile(`daily-fuel-cost-report-${day}.csv`, toCsv([
+      downloadFile(`daily-fuel-cost-report-${day}${riderSuffix}.csv`, toCsv([
         ['Rider','KM','Total','Paid','Pending','Total Pending'],
         ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, totalPendingMap[r.id]||0])
       ]), 'text/csv;charset=utf-8;');
     } else {
       await exportVisual('Daily Fuel Cost Report', subtitle, ['Rider','KM','Total','Paid','Pending','Total Pending'],
         rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(totalPendingMap[r.id]||0)]),
-        `daily-fuel-cost-report-${day}`, format);
+        `daily-fuel-cost-report-${day}${riderSuffix}`, format);
     }
     DataStore.log(`Generated daily fuel cost report — ${day} (${format.toUpperCase()})`);
     await DataStore.persist();
