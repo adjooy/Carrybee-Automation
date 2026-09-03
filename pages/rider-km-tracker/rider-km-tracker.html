@@ -1296,10 +1296,10 @@ const Entries = (() => {
     const rows = [...DataStore.state.entries]
       .sort((a,b) => {
         if(a.date !== b.date) return b.date.localeCompare(a.date); // newest date first
-        const aPaymentOnly = Number(a.km || 0) === 0;
-        const bPaymentOnly = Number(b.km || 0) === 0;
-        if(aPaymentOnly !== bPaymentOnly) return aPaymentOnly ? -1 : 1; // payment-only entries float to the top
-        return entryTimestamp(b) - entryTimestamp(a); // most recently added first within the same group
+        // Within the same date, order by true creation time (most recent first) —
+        // the same chronology riderRunningTotals uses to build the running balance,
+        // so the table's visible order always matches how the balance was actually computed.
+        return entryTimestamp(b) - entryTimestamp(a);
       })
       .filter(e => {
         const name = (rMap[e.riderId]||'').toLowerCase();
