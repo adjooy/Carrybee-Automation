@@ -937,9 +937,12 @@ function riderRunningTotals(entries){
 
 /* Convenience: running balance for every rider as of the end of one
    specific date (i.e. after all their entries dated on/before `day`,
-   processed in true chronological order). */
-function riderPendingAsOf(day){
-  const { sorted, balance } = riderRunningTotals(DataStore.state.entries);
+   processed in true chronological order). Pass excludeId when
+   previewing an edit so the entry being edited doesn't get counted
+   twice (once from its old stored value, once from the live form). */
+function riderPendingAsOf(day, excludeId){
+  const source = excludeId ? DataStore.state.entries.filter(e => e.id !== excludeId) : DataStore.state.entries;
+  const { sorted, balance } = riderRunningTotals(source);
   const map = {};
   DataStore.state.riders.forEach(r => {
     const list = (sorted[r.id] || []).filter(e => e.date <= day);
@@ -950,8 +953,8 @@ function riderPendingAsOf(day){
 
 function entryStatus(e){
   const total = Number(e.total||0), paid = Number(e.paid||0);
-  if(total <= 0) return 'unpaid';
-  if(paid >= total) return 'paid';
+  if(paid >= total && paid > 0) return 'paid';
+  if(total <= 0) return paid > 0 ? 'paid' : 'unpaid';
   if(paid > 0) return 'partial';
   return 'unpaid';
 }
@@ -1189,7 +1192,7 @@ const Entries = (() => {
     if(total > 0 && paid >= total) status = 'Paid';
     else if(paid > 0) status = 'Partial';
 
-    const asOfMap = riderId ? riderPendingAsOf(date) : {};
+    const asOfMap = riderId ? riderPendingAsOf(date, editingId) : {};
     const baseline = asOfMap[riderId] || 0;
     const totalPending = baseline + pending;
 
@@ -1209,7 +1212,7 @@ const Entries = (() => {
 
     if(!riderId) return alert('Add a rider first.');
     if(!date) return alert('Select a date.');
-    if(rate < 0 || paid < 0) return alert('Negative values are not allowed.');
+    if(km < 0 || rate < 0 || paid < 0) return alert('Negative values are not allowed.');
 
     const total = km * rate;
     if(paid > total && !confirm('Paid amount is more than the total. Continue?')) return;
@@ -1404,7 +1407,13 @@ const Reports = (() => {
     const daily = DataStore.state.entries
       .filter(e => e.date === day)
       .filter(e => !dailyRiderId || e.riderId === dailyRiderId);
-    document.getElementById('dailyRows').innerHTML = dailyTableHtml(summarize(daily, dailyRiderId ? true : daily.length > 0), riderPendingAsOf(day));
+    // Build the full per-rider table first (so zero-activity riders show as
+    // zero rows when viewing "All Riders"), then narrow to just the selected
+    // rider when one is picked — matching what the CSV/PDF/JPG export already
+    // does, so the on-screen table and the exported file always agree.
+    let dailyRows = summarize(daily, dailyRiderId ? true : daily.length > 0);
+    if(dailyRiderId) dailyRows = dailyRows.filter(r => r.id === dailyRiderId);
+    document.getElementById('dailyRows').innerHTML = dailyTableHtml(dailyRows, riderPendingAsOf(day));
 
     const month = document.getElementById('reportMonth').value;
     const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
