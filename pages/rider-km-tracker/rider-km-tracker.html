@@ -220,24 +220,45 @@
 
   ::placeholder{color:#9a927e;}
 
-  /* ---------- menu ---------- */
-  .menu-wrap{position:relative;}
-  .menu-dropdown{
-    position:absolute; top:calc(100% + 8px); right:0; min-width:230px; max-width:calc(100vw - 32px);
-    max-height:calc(100vh - 100px); overflow-y:auto;
-    background:var(--paper-raised); border:1px solid var(--steel-line); border-radius:12px;
-    box-shadow:0 16px 40px rgba(18,21,28,0.28); padding:8px; display:flex; flex-direction:column; gap:2px; z-index:80;
+  /* ---------- side menu (permanent panel on the right) ---------- */
+  .side-menu{
+    position:fixed; top:0; right:0; width:250px; height:100vh; overflow-y:auto;
+    background:var(--paper-raised); border-left:1px solid var(--steel-line);
+    padding:20px 14px; display:flex; flex-direction:column; gap:2px; z-index:70;
+    box-shadow:-8px 0 28px rgba(18,21,28,0.06);
   }
-  .menu-dropdown.hidden{display:none;}
+  .side-menu-head{padding:2px 8px 14px;}
+  .side-menu-head h3{font-size:19px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em;}
   .menu-item{
     background:transparent; color:var(--ink); border:none; text-align:left; font-weight:600;
     padding:10px 12px; border-radius:8px; width:100%;
   }
   .menu-item:hover{background:var(--paper);}
   .menu-divider{border-top:1px solid var(--steel-line); margin:6px 2px;}
+  .menu-toggle-mobile{display:none;}
+
+  /* content is pushed left so the permanent sidebar never overlaps it */
+  .dash{padding-right:calc(clamp(16px,4vw,40px) + 250px);}
+  .wrap{padding-right:calc(clamp(16px,4vw,40px) + 250px);}
+
+  @media (max-width:900px){
+    /* below this width there's no room for a permanent 250px rail —
+       the panel becomes a bottom drawer opened by a floating button */
+    .dash{padding-right:clamp(16px,4vw,40px);}
+    .wrap{padding-right:clamp(16px,4vw,40px);}
+    .side-menu{
+      top:auto; bottom:0; left:0; right:0; width:auto; height:auto; max-height:75vh;
+      border-left:none; border-top:1px solid var(--steel-line); border-radius:16px 16px 0 0;
+      transform:translateY(110%); transition:transform .25s ease; box-shadow:0 -10px 30px rgba(18,21,28,0.22);
+    }
+    .side-menu.open{transform:translateY(0);}
+    .menu-toggle-mobile{
+      display:block; position:fixed; bottom:16px; right:16px; z-index:75;
+      border-radius:999px; box-shadow:0 10px 24px rgba(18,21,28,0.25);
+    }
+  }
 
   @media (max-width:480px){
-    .menu-dropdown{position:fixed; top:auto; bottom:12px; left:12px; right:12px; width:auto; min-width:0;}
     .dash-top{align-items:center;}
     .brand h1{font-size:22px;}
     .brand{gap:8px; flex-wrap:wrap;}
@@ -274,6 +295,29 @@
 </div>
 
 <div id="appRoot" class="hidden">
+
+<button class="menu-toggle-mobile btn-amber" onclick="Menu.toggle()">☰ Menu</button>
+
+<aside class="side-menu" id="sideMenu">
+  <div class="side-menu-head"><h3>Menu</h3></div>
+  <button class="menu-item session-unlock-btn" onclick="Menu.action(PinSystem.unlock)">Unlock Owner Access</button>
+  <button class="menu-item session-lock-btn" onclick="Menu.action(PinSystem.lock)">Lock Owner Access</button>
+  <button class="menu-item" onclick="Menu.action(Backup.exportJSON)">Backup JSON</button>
+  <button class="menu-item" onclick="Menu.action(Backup.exportCSV)">Export CSV</button>
+  <div class="menu-divider"></div>
+  <button class="menu-item" onclick="Menu.open('riderModal')">Add Rider</button>
+  <button class="menu-item" onclick="Menu.open('ownerModal')">Owner Panel</button>
+  <div class="menu-divider"></div>
+  <button class="menu-item" onclick="Menu.open('dailyModal')">Daily Fuel Cost Report</button>
+  <button class="menu-item" onclick="Menu.open('weeklyModal')">Weekly Report</button>
+  <button class="menu-item" onclick="Menu.open('monthlyModal')">Monthly Summary</button>
+  <button class="menu-item" onclick="Reports.openRiderReport()">Rider Report</button>
+  <button class="menu-item" onclick="Menu.open('backupModal')">Backup & Restore</button>
+  <button class="menu-item" onclick="Menu.open('auditModal')">Audit Log</button>
+  <div class="menu-divider"></div>
+  <button class="menu-item" id="accountEmailLabel" style="color:var(--ink-soft); font-weight:600; cursor:default;" onclick="event.stopPropagation()"></button>
+  <button class="menu-item" style="color:var(--red);" onclick="Menu.action(Auth.logout)">Log Out</button>
+</aside>
 
 <div id="pinOverlay" class="overlay hidden">
   <div class="overlay-card">
@@ -452,28 +496,6 @@
     <div class="brand">
       <h1>Ledger</h1>
       <span>Rider KM & Payout Tracker</span>
-    </div>
-    <div class="menu-wrap">
-      <button class="btn-amber" onclick="Menu.toggle()">☰ Menu</button>
-      <div class="menu-dropdown hidden" id="menuDropdown">
-        <button class="menu-item session-unlock-btn" onclick="Menu.action(PinSystem.unlock)">Unlock Owner Access</button>
-        <button class="menu-item session-lock-btn" onclick="Menu.action(PinSystem.lock)">Lock Owner Access</button>
-        <button class="menu-item" onclick="Menu.action(Backup.exportJSON)">Backup JSON</button>
-        <button class="menu-item" onclick="Menu.action(Backup.exportCSV)">Export CSV</button>
-        <div class="menu-divider"></div>
-        <button class="menu-item" onclick="Menu.open('riderModal')">Add Rider</button>
-        <button class="menu-item" onclick="Menu.open('ownerModal')">Owner Panel</button>
-        <div class="menu-divider"></div>
-        <button class="menu-item" onclick="Menu.open('dailyModal')">Daily Fuel Cost Report</button>
-        <button class="menu-item" onclick="Menu.open('weeklyModal')">Weekly Report</button>
-        <button class="menu-item" onclick="Menu.open('monthlyModal')">Monthly Summary</button>
-        <button class="menu-item" onclick="Reports.openRiderReport()">Rider Report</button>
-        <button class="menu-item" onclick="Menu.open('backupModal')">Backup & Restore</button>
-        <button class="menu-item" onclick="Menu.open('auditModal')">Audit Log</button>
-        <div class="menu-divider"></div>
-        <button class="menu-item" id="accountEmailLabel" style="color:var(--ink-soft); font-weight:600; cursor:default;" onclick="event.stopPropagation()"></button>
-        <button class="menu-item" style="color:var(--red);" onclick="Menu.action(Auth.logout)">Log Out</button>
-      </div>
     </div>
   </div>
   <div class="odometer-row">
@@ -845,13 +867,14 @@ const Overlay = (() => {
 })();
 
 /* ============================================================
-   MENU (top-right dropdown + the two modals it opens)
+   MENU (permanent right-side panel; collapses to a bottom
+   drawer on narrow screens, toggled by the floating button)
    ============================================================ */
 const Menu = (() => {
-  function dropdown(){ return document.getElementById('menuDropdown'); }
+  function panel(){ return document.getElementById('sideMenu'); }
 
-  function toggle(){ dropdown().classList.toggle('hidden'); }
-  function closeDropdown(){ dropdown().classList.add('hidden'); }
+  function toggle(){ panel().classList.toggle('open'); }
+  function closeDropdown(){ panel().classList.remove('open'); }
 
   function action(fn){ closeDropdown(); fn(); }
 
@@ -863,9 +886,12 @@ const Menu = (() => {
     document.getElementById(modalId).classList.add('hidden');
   }
 
+  // Only relevant for the mobile drawer (permanent desktop panel is
+  // always visible via CSS, so this simply no-ops there).
   document.addEventListener('click', e => {
-    const wrap = document.querySelector('.menu-wrap');
-    if(wrap && !wrap.contains(e.target)) closeDropdown();
+    const el = panel();
+    const toggleBtn = document.querySelector('.menu-toggle-mobile');
+    if(el && !el.contains(e.target) && toggleBtn && !toggleBtn.contains(e.target)) closeDropdown();
   });
 
   return { toggle, open, close, action };
@@ -1358,10 +1384,11 @@ const Dashboard = {
 const Reports = (() => {
   function startOfWeek(d){
     const date = new Date(d);
-    const day = date.getDay();
-    date.setDate(date.getDate() - day + (day === 0 ? -6 : 1));
+    const day = date.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+    const daysSinceSaturday = (day + 1) % 7; // Sat->0, Sun->1, Mon->2 ... Fri->6
+    date.setDate(date.getDate() - daysSinceSaturday);
     date.setHours(0,0,0,0);
-    return date;
+    return date; // always a Saturday; caller adds 6 days to reach the following Friday
   }
 
   function summarize(entries, keepAllRiders){
@@ -1467,14 +1494,32 @@ const Reports = (() => {
   }
 
   function renderRiderReport(){
+    const riderId = document.getElementById('riderReportSelect').value;
+    const to = document.getElementById('rrTo').value;
     const entries = riderReportEntries();
-    const { balance } = riderRunningTotals(DataStore.state.entries);
+    const { sorted, balance } = riderRunningTotals(DataStore.state.entries);
 
     const sum = key => entries.reduce((s,e) => s + Number(e[key]||0), 0);
     document.getElementById('rrKm').textContent = money(sum('km'));
     document.getElementById('rrTotal').textContent = money(sum('total'));
     document.getElementById('rrPaid').textContent = money(sum('paid'));
-    document.getElementById('rrPending').textContent = money(sum('pending'));
+
+    // "Pending" here means what the rider currently owes as of the end of the
+    // selected range — the true running balance — not just the sum of this
+    // range's own entries. Summing only the range double-drops any balance
+    // carried over from before it, so Week/Month never matched Lifetime
+    // (which happens to work today only because summing *every* entry equals
+    // the final running balance).
+    let pendingDisplay = 0;
+    if(riderId){
+      if(to){
+        pendingDisplay = riderPendingAsOf(to)[riderId] || 0;
+      } else {
+        const list = sorted[riderId] || [];
+        pendingDisplay = list.length ? balance[list[list.length - 1].id] : 0;
+      }
+    }
+    document.getElementById('rrPending').textContent = money(pendingDisplay);
 
     renderRows('riderReportRows', entries, 7, e => `<tr>
       <td>${e.date}</td>
