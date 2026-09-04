@@ -106,9 +106,6 @@
   @media (max-width:640px){ .row4-stats{grid-template-columns:repeat(2,1fr);} }
   .odo-row-4{grid-template-columns:repeat(4,1fr);}
   @media (max-width:640px){ .odo-row-4{grid-template-columns:repeat(2,1fr);} }
-  .odo-row-5{grid-template-columns:repeat(5,1fr);}
-  @media (max-width:900px){ .odo-row-5{grid-template-columns:repeat(3,1fr);} }
-  @media (max-width:640px){ .odo-row-5{grid-template-columns:repeat(2,1fr);} }
   .filter-row5{grid-template-columns:2fr 1fr 1fr 1fr 1fr;}
   @media (max-width:900px){ .filter-row5{grid-template-columns:1fr 1fr;} }
   @media (max-width:480px){ .filter-row5{grid-template-columns:1fr;} }
@@ -393,7 +390,7 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportWeekly('jpg')">JPG</button>
     </div>
     <div class="table-scroll" style="max-height:min(65vh, 500px);">
-      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="weeklyRows"></tbody></table>
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Total Pending</th></tr></thead><tbody id="weeklyRows"></tbody></table>
     </div>
   </div>
 </div>
@@ -411,7 +408,7 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportMonthly('jpg')">JPG</button>
     </div>
     <div class="table-scroll" style="max-height:min(60vh, 460px);">
-      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="monthlyRows"></tbody></table>
+      <table><thead><tr><th>Rider</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Total Pending</th></tr></thead><tbody id="monthlyRows"></tbody></table>
     </div>
   </div>
 </div>
@@ -437,12 +434,11 @@
       <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('pdf')">PDF</button>
       <button class="btn-sm btn-amber" onclick="Reports.exportRiderReport('jpg')">JPG</button>
     </div>
-    <div class="odometer-row odo-row-5" style="margin:14px 0; border-radius:10px;">
+    <div class="odometer-row odo-row-4" style="margin:14px 0; border-radius:10px;">
       <div class="odo"><div class="lbl">KM</div><div class="val num" id="rrKm">0.00</div></div>
       <div class="odo"><div class="lbl">Total</div><div class="val amber num" id="rrTotal">0.00</div></div>
       <div class="odo"><div class="lbl">Paid</div><div class="val green num" id="rrPaid">0.00</div></div>
-      <div class="odo"><div class="lbl">Pending (Lifetime)</div><div class="val red num" id="rrPending">0.00</div></div>
-      <div class="odo"><div class="lbl">Pending (This Range)</div><div class="val amber num" id="rrRangePending">0.00</div></div>
+      <div class="odo"><div class="lbl">Pending</div><div class="val red num" id="rrPending">0.00</div></div>
     </div>
     <div class="table-scroll" style="max-height:min(55vh, 420px);">
       <table><thead><tr><th>Date</th><th>KM</th><th>Total</th><th>Paid</th><th>Pending</th><th>Balance</th><th>Status</th></tr></thead><tbody id="riderReportRows"></tbody></table>
@@ -1420,15 +1416,7 @@ const Reports = (() => {
     return keepAllRiders ? rows : rows.filter(r => r.km || r.total || r.paid || r.pending);
   }
 
-  function tableHtml(rows){
-    if(!rows.length) return `<tr class="empty-row"><td colspan="5">No data.</td></tr>`;
-    return rows.map(r => `<tr>
-      <td>${esc(r.name)}</td><td class="num">${money(r.km)}</td><td class="num">${money(r.total)}</td>
-      <td class="num">${money(r.paid)}</td><td class="num">${money(r.pending)}</td>
-    </tr>`).join('');
-  }
-
-  function dailyTableHtml(rows, totalPendingMap){
+  function summaryTableHtml(rows, totalPendingMap){
     if(!rows.length) return `<tr class="empty-row"><td colspan="6">No data.</td></tr>`;
     return rows.map(r => `<tr>
       <td>${esc(r.name)}</td><td class="num">${money(r.km)}</td><td class="num">${money(r.total)}</td>
@@ -1437,13 +1425,19 @@ const Reports = (() => {
     </tr>`).join('');
   }
 
+  function monthEndDate(monthStr){
+    if(!monthStr) return todayISO(); // "All time" — use today's balance
+    const [y,m] = monthStr.split('-').map(Number);
+    return isoDateStr(new Date(y, m, 0)); // day 0 of next month = last day of this month
+  }
+
   function render(){
     populateRiderSelect();
 
     const weekStart = startOfWeek(new Date());
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
     const weekly = DataStore.state.entries.filter(e => { const d = parseLocalDate(e.date); return d >= weekStart && d <= weekEnd; });
-    document.getElementById('weeklyRows').innerHTML = tableHtml(summarize(weekly));
+    document.getElementById('weeklyRows').innerHTML = summaryTableHtml(summarize(weekly), riderPendingAsOf(isoDateStr(weekEnd)));
 
     const day = document.getElementById('reportDay').value || todayISO();
     const dailyRiderId = document.getElementById('dailyRiderSelect').value;
@@ -1456,11 +1450,11 @@ const Reports = (() => {
     // does, so the on-screen table and the exported file always agree.
     let dailyRows = summarize(daily, dailyRiderId ? true : daily.length > 0);
     if(dailyRiderId) dailyRows = dailyRows.filter(r => r.id === dailyRiderId);
-    document.getElementById('dailyRows').innerHTML = dailyTableHtml(dailyRows, riderPendingAsOf(day));
+    document.getElementById('dailyRows').innerHTML = summaryTableHtml(dailyRows, riderPendingAsOf(day));
 
     const month = document.getElementById('reportMonth').value;
     const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
-    document.getElementById('monthlyRows').innerHTML = tableHtml(summarize(monthly));
+    document.getElementById('monthlyRows').innerHTML = summaryTableHtml(summarize(monthly), riderPendingAsOf(monthEndDate(month)));
   }
 
   function populateRiderSelect(){
@@ -1522,16 +1516,12 @@ const Reports = (() => {
     document.getElementById('rrTotal').textContent = money(sum('total'));
     document.getElementById('rrPaid').textContent = money(sum('paid'));
 
-    // Lifetime: the rider's current overall outstanding balance, independent
-    // of whatever Week/Month/date range is selected.
+    // Pending: always the rider's current lifetime outstanding balance,
+    // independent of whatever Week/Month/date range is selected for the
+    // KM/Total/Paid figures and the entries list below.
     const riderList = sorted[riderId] || [];
     const pendingDisplay = riderList.length ? balance[riderList[riderList.length - 1].id] : 0;
     document.getElementById('rrPending').textContent = money(pendingDisplay);
-
-    // This Range: net pending accrued (or cleared, if negative) just within
-    // the selected Week/Month/custom range — the sum of this range's own
-    // entries, separate from the lifetime figure above.
-    document.getElementById('rrRangePending').textContent = money(sum('pending'));
 
     renderRows('riderReportRows', entries, 7, e => `<tr>
       <td>${e.date}</td>
@@ -1585,16 +1575,17 @@ const Reports = (() => {
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
     const weekly = DataStore.state.entries.filter(e => { const d = parseLocalDate(e.date); return d >= weekStart && d <= weekEnd; });
     const rows = summarize(weekly);
+    const totalPendingMap = riderPendingAsOf(isoDateStr(weekEnd));
     const subtitle = `Week of ${formatDateLong(weekStart)} – ${formatDateLong(weekEnd)}`;
 
     if(format === 'csv'){
       downloadFile(`weekly-report-${todayISO()}.csv`, toCsv([
-        ['Rider','KM','Total','Paid','Pending'],
-        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending])
+        ['Rider','KM','Total','Paid','Pending','Total Pending'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, totalPendingMap[r.id]||0])
       ]), 'text/csv;charset=utf-8;');
     } else {
-      await exportVisual('Weekly Report', subtitle, ['Rider','KM','Total','Paid','Pending'],
-        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending)]),
+      await exportVisual('Weekly Report', subtitle, ['Rider','KM','Total','Paid','Pending','Total Pending'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(totalPendingMap[r.id]||0)]),
         `weekly-report-${todayISO()}`, format);
     }
     DataStore.log(`Generated weekly report (${format.toUpperCase()})`);
@@ -1606,16 +1597,17 @@ const Reports = (() => {
     const month = document.getElementById('reportMonth').value;
     const monthly = DataStore.state.entries.filter(e => !month || e.date.startsWith(month));
     const rows = summarize(monthly);
+    const totalPendingMap = riderPendingAsOf(monthEndDate(month));
     const subtitle = month ? `Month of ${month}` : 'All time';
 
     if(format === 'csv'){
       downloadFile(`monthly-report-${month || 'all'}.csv`, toCsv([
-        ['Rider','KM','Total','Paid','Pending'],
-        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending])
+        ['Rider','KM','Total','Paid','Pending','Total Pending'],
+        ...rows.map(r => [r.name, r.km, r.total, r.paid, r.pending, totalPendingMap[r.id]||0])
       ]), 'text/csv;charset=utf-8;');
     } else {
-      await exportVisual('Monthly Summary', subtitle, ['Rider','KM','Total','Paid','Pending'],
-        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending)]),
+      await exportVisual('Monthly Summary', subtitle, ['Rider','KM','Total','Paid','Pending','Total Pending'],
+        rows.map(r => [r.name, money(r.km), money(r.total), money(r.paid), money(r.pending), money(totalPendingMap[r.id]||0)]),
         `monthly-report-${month || 'all'}`, format);
     }
     DataStore.log(`Generated monthly report${month ? ' — ' + month : ''} (${format.toUpperCase()})`);
@@ -1656,8 +1648,7 @@ const Reports = (() => {
         { label:'KM', value: money(sum('km')) },
         { label:'Total', value: money(sum('total')) },
         { label:'Paid', value: money(sum('paid')) },
-        { label:'Pending (Lifetime)', value: money(pendingDisplay) },
-        { label:'Pending (This Range)', value: money(sum('pending')) }
+        { label:'Pending', value: money(pendingDisplay) }
       ];
       await exportVisual(`Rider Report — ${name}`, `${rangeSubtitle} · Generated ${formatDateLong(new Date())}`,
         ['Date','KM','Total','Paid','Pending','Balance','Status','Note'],
