@@ -1476,7 +1476,10 @@ const Reports = (() => {
       .filter(e => e.riderId === riderId)
       .filter(e => !from || e.date >= from)
       .filter(e => !to || e.date <= to)
-      .sort((a,b) => b.date.localeCompare(a.date));
+      .sort((a,b) => {
+        if(a.date !== b.date) return b.date.localeCompare(a.date); // newest date first
+        return entryTimestamp(b) - entryTimestamp(a); // within the same date, most recently created first
+      });
   }
 
   function setRiderReportRange(preset){
@@ -1621,7 +1624,10 @@ const Reports = (() => {
   async function exportRiderReport(format){
     const riderId = document.getElementById('riderReportSelect').value;
     const name = riderMap()[riderId] || 'Unknown';
-    const entries = riderReportEntries().sort((a,b) => a.date.localeCompare(b.date));
+    const entries = riderReportEntries().sort((a,b) => {
+      if(a.date !== b.date) return a.date.localeCompare(b.date); // oldest date first for exports
+      return entryTimestamp(a) - entryTimestamp(b); // within the same date, earliest created first
+    });
     if(!entries.length) return alert('No entries in this range for this rider.');
     const { balance } = riderRunningTotals(DataStore.state.entries);
     const slug = name.trim().toLowerCase().replace(/\s+/g,'-') || 'rider';
@@ -1680,7 +1686,10 @@ const Backup = (() => {
   async function exportCSV(){
     const rMap = riderMap();
     const rows = [['Date','Rider','KM','Rate','Total','Paid','Pending','Status','Note']];
-    [...DataStore.state.entries].sort((a,b) => a.date.localeCompare(b.date)).forEach(e => {
+    [...DataStore.state.entries].sort((a,b) => {
+      if(a.date !== b.date) return a.date.localeCompare(b.date);
+      return entryTimestamp(a) - entryTimestamp(b);
+    }).forEach(e => {
       rows.push([e.date, rMap[e.riderId]||'Unknown', e.km, e.rate, e.total, e.paid, e.pending, entryStatus(e), e.note||'']);
     });
     downloadFile(`ledger-report-${todayISO()}.csv`, toCsv(rows), 'text/csv;charset=utf-8;');
