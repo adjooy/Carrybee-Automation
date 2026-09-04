@@ -909,8 +909,9 @@ const Menu = (() => {
    ============================================================ */
 const money = v => Number(v || 0).toFixed(2);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-const todayISO = () => new Date().toISOString().split('T')[0];
 const isoDateStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const todayISO = () => isoDateStr(new Date()); // local date, not UTC — new Date().toISOString() would show yesterday's date for hours near local midnight in timezones ahead of UTC (e.g. Bangladesh, UTC+6)
+const parseLocalDate = dateStr => { const [y,m,d] = String(dateStr).split('-').map(Number); return new Date(y, (m||1)-1, d||1); };
 
 /* Ownership credit — stored base64-encoded rather than as plain text in the
    source, and re-injected on every load. Not real encryption (nothing client-side
@@ -1173,7 +1174,11 @@ const Riders = (() => {
   function populateSelects(){
     const riders = DataStore.state.riders;
     const options = riders.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
-    document.getElementById('entryRider').innerHTML = options || '<option value="">No riders yet</option>';
+
+    const entryRider = document.getElementById('entryRider');
+    const prevEntryRider = entryRider.value;
+    entryRider.innerHTML = options || '<option value="">No riders yet</option>';
+    if(prevEntryRider && riders.some(r => r.id === prevEntryRider)) entryRider.value = prevEntryRider;
 
     const fRider = document.getElementById('fRider');
     const prevSelected = fRider.value;
@@ -1433,7 +1438,7 @@ const Reports = (() => {
 
     const weekStart = startOfWeek(new Date());
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
-    const weekly = DataStore.state.entries.filter(e => { const d = new Date(e.date); return d >= weekStart && d <= weekEnd; });
+    const weekly = DataStore.state.entries.filter(e => { const d = parseLocalDate(e.date); return d >= weekStart && d <= weekEnd; });
     document.getElementById('weeklyRows').innerHTML = tableHtml(summarize(weekly));
 
     const day = document.getElementById('reportDay').value || todayISO();
@@ -1581,7 +1586,7 @@ const Reports = (() => {
   async function exportWeekly(format){
     const weekStart = startOfWeek(new Date());
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
-    const weekly = DataStore.state.entries.filter(e => { const d = new Date(e.date); return d >= weekStart && d <= weekEnd; });
+    const weekly = DataStore.state.entries.filter(e => { const d = parseLocalDate(e.date); return d >= weekStart && d <= weekEnd; });
     const rows = summarize(weekly);
     const subtitle = `Week of ${formatDateLong(weekStart)} – ${formatDateLong(weekEnd)}`;
 
