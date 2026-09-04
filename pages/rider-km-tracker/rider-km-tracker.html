@@ -125,6 +125,7 @@
   .btn-red{background:var(--red); color:#fff;}
   .btn-red:hover{box-shadow:0 6px 16px rgba(199,76,86,0.32);}
   .btn-sm{padding:6px 10px; font-size:12px; border-radius:7px;}
+  .btn-xs{padding:4px 8px; font-size:11px; border-radius:6px;}
   .btn-block{width:100%;}
   .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
 
@@ -137,9 +138,14 @@
     border-bottom:1px solid var(--steel-line); white-space:nowrap;
   }
   td{padding:10px 12px; border-bottom:1px solid #ece7d9; vertical-align:middle; white-space:nowrap;}
+  @media (max-width:1300px){
+    th, td{padding:9px 9px;}
+    .note-cell{max-width:130px;}
+  }
   @media (max-width:640px){
     table{min-width:520px; font-size:12.5px;}
     th, td{padding:8px 10px;}
+    .note-cell{max-width:100px;}
   }
   tr:last-child td{border-bottom:none;}
   .empty-row td{text-align:center; color:var(--ink-soft); padding:26px 0; font-style:italic;}
@@ -148,6 +154,7 @@
   .badge.partial{background:#fdf1de; color:var(--amber-dark);}
   .badge.unpaid{background:var(--red-bg); color:var(--red);}
   .note-muted{color:var(--ink-soft); font-size:12px; margin-top:10px; line-height:1.6;}
+  .note-cell{max-width:180px; overflow:hidden; text-overflow:ellipsis; cursor:help;}
 
   /* ---------- overlay ---------- */
   .overlay{position:fixed; inset:0; background:rgba(18,21,28,0.6); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:20px; z-index:999;}
@@ -221,7 +228,7 @@
   ::placeholder{color:#9a927e;}
 
   /* ---------- app body: left menu column + main content ---------- */
-  .app-body{display:flex; align-items:flex-start; max-width:1500px; margin:0 auto;}
+  .app-body{display:flex; align-items:flex-start; width:100%;}
   .side-menu{
     position:sticky; top:0; align-self:flex-start;
     width:220px; flex:0 0 220px; max-height:100vh; overflow-y:auto;
@@ -1349,10 +1356,10 @@ const Entries = (() => {
         <td class="num">${money(e.pending)}</td>
         <td class="num">${money(riderTotalPending)}</td>
         <td>${statusBadge(status)}</td>
-        <td>${esc(e.note||'')}</td>
-        <td><div class="btn-row">
-          <button class="btn-sm btn-outline" onclick="Entries.edit('${e.id}')">Edit</button>
-          <button class="btn-sm btn-red" onclick="Entries.remove('${e.id}')">Delete</button>
+        <td class="note-cell" title="${esc(e.note||'')}">${esc(e.note||'')}</td>
+        <td><div class="btn-row" style="gap:6px; flex-wrap:nowrap;">
+          <button class="btn-xs btn-outline" onclick="Entries.edit('${e.id}')">Edit</button>
+          <button class="btn-xs btn-red" onclick="Entries.remove('${e.id}')">Delete</button>
         </div></td>
       </tr>`;
     }, 'No entries found.');
