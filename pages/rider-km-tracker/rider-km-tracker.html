@@ -1510,7 +1510,6 @@ const Reports = (() => {
 
   function renderRiderReport(){
     const riderId = document.getElementById('riderReportSelect').value;
-    const to = document.getElementById('rrTo').value;
     const entries = riderReportEntries();
     const { sorted, balance } = riderRunningTotals(DataStore.state.entries);
 
@@ -1519,21 +1518,11 @@ const Reports = (() => {
     document.getElementById('rrTotal').textContent = money(sum('total'));
     document.getElementById('rrPaid').textContent = money(sum('paid'));
 
-    // "Pending" here means what the rider currently owes as of the end of the
-    // selected range — the true running balance — not just the sum of this
-    // range's own entries. Summing only the range double-drops any balance
-    // carried over from before it, so Week/Month never matched Lifetime
-    // (which happens to work today only because summing *every* entry equals
-    // the final running balance).
-    let pendingDisplay = 0;
-    if(riderId){
-      if(to){
-        pendingDisplay = riderPendingAsOf(to)[riderId] || 0;
-      } else {
-        const list = sorted[riderId] || [];
-        pendingDisplay = list.length ? balance[list[list.length - 1].id] : 0;
-      }
-    }
+    // "Pending" is always the rider's current lifetime outstanding balance —
+    // independent of whatever Week/Month/date range is selected for the
+    // KM/Total/Paid figures and the entries list below.
+    const riderList = sorted[riderId] || [];
+    const pendingDisplay = riderList.length ? balance[riderList[riderList.length - 1].id] : 0;
     document.getElementById('rrPending').textContent = money(pendingDisplay);
 
     renderRows('riderReportRows', entries, 7, e => `<tr>
@@ -1634,12 +1623,18 @@ const Reports = (() => {
       return entryTimestamp(a) - entryTimestamp(b); // within the same date, earliest created first
     });
     if(!entries.length) return alert('No entries in this range for this rider.');
-    const { balance } = riderRunningTotals(DataStore.state.entries);
+    const { sorted, balance } = riderRunningTotals(DataStore.state.entries);
     const slug = name.trim().toLowerCase().replace(/\s+/g,'-') || 'rider';
     const from = document.getElementById('rrFrom').value;
     const to = document.getElementById('rrTo').value;
     const rangeLabel = (from || to) ? `${from || 'start'}_to_${to || 'now'}` : 'lifetime';
     const rangeSubtitle = (from || to) ? `${from || '…'} – ${to || '…'}` : 'Lifetime';
+
+    // "Pending" is always the rider's current lifetime outstanding balance —
+    // independent of whatever Week/Month/date range this export covers for
+    // the KM/Total/Paid/entries figures.
+    const riderList = sorted[riderId] || [];
+    const pendingDisplay = riderList.length ? balance[riderList[riderList.length - 1].id] : 0;
 
     if(format === 'csv'){
       const csv = toCsv([
@@ -1653,7 +1648,7 @@ const Reports = (() => {
         { label:'KM', value: money(sum('km')) },
         { label:'Total', value: money(sum('total')) },
         { label:'Paid', value: money(sum('paid')) },
-        { label:'Pending', value: money(sum('pending')) }
+        { label:'Pending', value: money(pendingDisplay) }
       ];
       await exportVisual(`Rider Report — ${name}`, `${rangeSubtitle} · Generated ${formatDateLong(new Date())}`,
         ['Date','KM','Total','Paid','Pending','Balance','Status','Note'],
