@@ -262,7 +262,7 @@ I hope you are doing well.
 </p>
 
 <p>
-Yesterday ${longDate} I handed over the collected amounts for the following summary:
+Today ${longDate} I handed over the collected amounts for the following summary:
 </p>
 
 <p>
